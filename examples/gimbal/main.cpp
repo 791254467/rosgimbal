@@ -53,9 +53,9 @@
 VCP* uartPtr = NULL;
 
 enum ParseState {
-  PARSE_STATE_IDLE,
-  PARSE_STATE_GOT_START_BYTE,
-  PARSE_STATE_GOT_PAYLOAD
+    PARSE_STATE_IDLE,
+    PARSE_STATE_GOT_START_BYTE,
+    PARSE_STATE_GOT_PAYLOAD
 };
 
 volatile float az_command;
@@ -75,6 +75,8 @@ uint8_t in_crc_value;
 void handle_in_msg(float az, float el);
 void unpack_in_payload(uint8_t buf[IN_PAYLOAD_LENGTH], float *az, float *el);
 bool parse_in_byte(uint8_t c);
+
+uint8_t _crc8_ccitt_update (uint8_t inCrc, uint8_t inData);
 
 //==================================================================
 // handle received serial data
@@ -96,9 +98,9 @@ void rx_callback(uint8_t byte)
 //==================================================================
 void handle_in_msg(float az, float el)
 {
-  time_of_last_command = millis();
-  az_command = az;
-  el_command = el;
+    time_of_last_command = millis();
+    az_command = az;
+    el_command = el;
 }
 
 //==================================================================
@@ -106,8 +108,8 @@ void handle_in_msg(float az, float el)
 //==================================================================
 void unpack_in_payload(uint8_t buf[], float *az, float *el)
 {
-  memcpy(az, buf,     4);
-  memcpy(el, buf + 4, 4);
+    memcpy(az, buf,     4);
+    memcpy(el, buf + 4, 4);
 }
 
 //==================================================================
@@ -115,41 +117,66 @@ void unpack_in_payload(uint8_t buf[], float *az, float *el)
 //==================================================================
 bool parse_in_byte(uint8_t c)
 {
-  bool got_message = false;
-  switch (parse_state)
-  {
-  case PARSE_STATE_IDLE:
-    if (c == IN_START_BYTE)
+    bool got_message = false;
+    switch (parse_state)
     {
-      in_crc_value = CRC_INITIAL_VALUE;
-      in_crc_value = _crc8_ccitt_update(in_crc_value, c);
+    case PARSE_STATE_IDLE:
+        if (c == IN_START_BYTE)
+        {
+            in_crc_value = CRC_INITIAL_VALUE;
+            in_crc_value = _crc8_ccitt_update(in_crc_value, c);
 
-      in_payload_index = 0;
-      parse_state = PARSE_STATE_GOT_START_BYTE;
+            in_payload_index = 0;
+            parse_state = PARSE_STATE_GOT_START_BYTE;
+        }
+        break;
+
+    case PARSE_STATE_GOT_START_BYTE:
+        in_crc_value = _crc8_ccitt_update(in_crc_value, c);
+        in_payload_buf[in_payload_index++] = c;
+        if (in_payload_index == IN_PAYLOAD_LENGTH)
+        {
+            parse_state = PARSE_STATE_GOT_PAYLOAD;
+        }
+        break;
+
+    case PARSE_STATE_GOT_PAYLOAD:
+        if (c == in_crc_value)
+        {
+            got_message = true;
+        }
+        parse_state = PARSE_STATE_IDLE;
+        break;
     }
-    break;
 
-  case PARSE_STATE_GOT_START_BYTE:
-    in_crc_value = _crc8_ccitt_update(in_crc_value, c);
-    in_payload_buf[in_payload_index++] = c;
-    if (in_payload_index == IN_PAYLOAD_LENGTH)
-    {
-      parse_state = PARSE_STATE_GOT_PAYLOAD;
-    }
-    break;
-
-  case PARSE_STATE_GOT_PAYLOAD:
-    if (c == in_crc_value)
-    {
-      got_message = true;
-    }
-    parse_state = PARSE_STATE_IDLE;
-    break;
-  }
-
-  return got_message;
+    return got_message;
 }
 
+
+//==================================================================
+// handle crc
+//==================================================================
+uint8_t _crc8_ccitt_update (uint8_t inCrc, uint8_t inData)
+{
+    uint8_t   i;
+    uint8_t   data;
+
+    data = inCrc ^ inData;
+
+    for ( i = 0; i < 8; i++ )
+    {
+        if (( data & 0x80 ) != 0 )
+        {
+            data <<= 1;
+            data ^= 0x07;
+        }
+        else
+        {
+            data <<= 1;
+        }
+    }
+    return data;
+}
 
 
 int main() {
