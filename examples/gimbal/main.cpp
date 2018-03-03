@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, James Jackson
+ * Copyright (c) 2018, James Jackson, Dallin Briggs
  *
  * All rights reserved.
  *
@@ -37,14 +37,15 @@
 #include "revo_f4.h"
 
 // serial communication
-#define OUT_BUFFER_SIZE 64
+#define OUT_BUFFER_SIZE 14
 #define OUT_START_BYTE 0xA5
-#define OUT_PAYLOAD_LENGTH 36
-#define OUT_MESSAGE_LENGTH 38
+#define OUT_PAYLOAD_LENGTH 12
+#define OUT_MESSAGE_LENGTH 14
 
+#define IN_BUFFER_SIZE 14
 #define IN_START_BYTE 0xA5
-#define IN_PAYLOAD_LENGTH 8
-#define IN_MESSAGE_LENGTH 10
+#define IN_PAYLOAD_LENGTH 12
+#define IN_MESSAGE_LENGTH 14
 
 #define CRC_LENGTH 1
 #define CRC_INITIAL_VALUE 0x00
@@ -58,13 +59,15 @@ enum ParseState {
     PARSE_STATE_GOT_PAYLOAD
 };
 
-volatile float az_command;
-volatile float el_command;
+volatile float roll_command;
+volatile float pitch_command;
+volatile float yaw_command;
 volatile long time_of_last_command;
 
 
 // serial
 uint8_t out_buf[OUT_BUFFER_SIZE];
+uint8_t in_buf[IN_BUFFER_SIZE];
 
 ParseState parse_state;
 uint8_t in_payload_buf[IN_PAYLOAD_LENGTH];
@@ -72,8 +75,8 @@ int in_payload_index;
 uint8_t in_crc_value;
 
 
-void handle_in_msg(float az, float el);
-void unpack_in_payload(uint8_t buf[IN_PAYLOAD_LENGTH], float *az, float *el);
+void handle_in_msg(float roll, float pitch, float yaw);
+void unpack_in_payload(uint8_t buf[IN_PAYLOAD_LENGTH], float *roll, float *pitch, float *yaw);
 bool parse_in_byte(uint8_t c);
 
 uint8_t _crc8_ccitt_update (uint8_t inCrc, uint8_t inData);
@@ -85,9 +88,9 @@ void rx_callback(uint8_t byte)
 {
     if (parse_in_byte(byte))
     {
-        float az, el;
-        unpack_in_payload(in_payload_buf, &az, &el);
-        handle_in_msg(az, el);
+        float roll, pitch, yaw;
+        unpack_in_payload(in_payload_buf, &roll, &pitch, &yaw);
+        handle_in_msg(roll, pitch, yaw);
     }
     uartPtr->put_byte(byte);
     uartPtr->flush();
@@ -96,20 +99,22 @@ void rx_callback(uint8_t byte)
 //==================================================================
 // handle received message
 //==================================================================
-void handle_in_msg(float az, float el)
+void handle_in_msg(float roll, float pitch, float yaw)
 {
     time_of_last_command = millis();
-    az_command = az;
-    el_command = el;
+    roll_command = roll;
+    pitch_command = pitch;
+    yaw_command = yaw;
 }
 
 //==================================================================
 // unpack incoming message payload
 //==================================================================
-void unpack_in_payload(uint8_t buf[], float *az, float *el)
+void unpack_in_payload(uint8_t buf[], float *roll, float *pitch, float *yaw)
 {
-    memcpy(az, buf,     4);
-    memcpy(el, buf + 4, 4);
+    memcpy(roll, buf,     4);
+    memcpy(pitch, buf + 4, 4);
+    memcpy(yaw, buf + 8, 4);
 }
 
 //==================================================================
@@ -163,7 +168,7 @@ uint8_t _crc8_ccitt_update (uint8_t inCrc, uint8_t inData)
 
     data = inCrc ^ inData;
 
-    for ( i = 0; i < 8; i++ )
+    for ( i = 0; i < 12; i++ )
     {
         if (( data & 0x80 ) != 0 )
         {
@@ -187,6 +192,8 @@ int main() {
     uartPtr = &vcp;
     vcp.register_rx_callback(&rx_callback);
 
+    parse_state = PARSE_STATE_IDLE;
+
     LED info;
     info.init(LED2_GPIO, LED2_PIN);
 
@@ -194,24 +201,19 @@ int main() {
     for (int i = 0; i < PWM_NUM_OUTPUTS; ++i)
     {
         servo_out[i].init(&pwm_config[i], 50, 2700, 600); // This works for a 9g servo.
-        servo_out[i].write(1.0);
+        servo_out[i].write(0.0);
     }
 
     while(1)
     {
-        int i = 0;
-        for (float pos = 0.0; pos <= 1.0; pos+=0.006)
+        while(vcp.rx_bytes_waiting())
         {
-            servo_out[i].write(pos);
-            delay(15);
+            uint8_t byte = vcp.read_byte();
+            rx_callback(byte);
         }
-        delay(2000);
-        for (float pos = 1.0; pos >= 0.0; pos-=0.006)
-        {
-            servo_out[i].write(pos);
-            delay(15);
-        }
-        delay(2000);
-        delay(500);
     }
 }
+
+
+
+
