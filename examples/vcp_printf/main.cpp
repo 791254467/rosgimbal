@@ -37,7 +37,7 @@ VCP* uartPtr = NULL;
 
 void rx_callback(uint8_t byte)
 {
-  uartPtr->put_byte(byte);
+//  uartPtr->put_byte(byte);
   uartPtr->flush();
 }
 

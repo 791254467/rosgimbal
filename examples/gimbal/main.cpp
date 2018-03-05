@@ -74,6 +74,8 @@ uint8_t in_payload_buf[IN_PAYLOAD_LENGTH];
 int in_payload_index;
 uint8_t in_crc_value;
 
+LED info;
+
 
 void handle_in_msg(float roll, float pitch, float yaw);
 void unpack_in_payload(uint8_t buf[IN_PAYLOAD_LENGTH], float *roll, float *pitch, float *yaw);
@@ -149,6 +151,7 @@ bool parse_in_byte(uint8_t c)
         if (c == in_crc_value)
         {
             got_message = true;
+            info.toggle();
         }
         parse_state = PARSE_STATE_IDLE;
         break;
@@ -194,7 +197,7 @@ int main() {
 
     parse_state = PARSE_STATE_IDLE;
 
-    LED info;
+
     info.init(LED2_GPIO, LED2_PIN);
 
     PWM_OUT servo_out[PWM_NUM_OUTPUTS];
