@@ -106,8 +106,8 @@ void rx_callback(uint8_t byte)
         handle_in_msg(roll, pitch, yaw);
     }
     // Use the following lines if you want to echo back what you received.
-//    uartPtr->put_byte(byte);
-//    uartPtr->flush();
+    //    uartPtr->put_byte(byte);
+    //    uartPtr->flush();
 }
 
 //==================================================================
@@ -265,7 +265,7 @@ int main() {
             uint8_t byte = vcp.read_byte();
             rx_callback(byte);
             norm_commands();
-//            servo_out[0].write(norm_roll);
+            //            servo_out[0].write(norm_roll);
             servo_out[1].write(norm_pitch);
             servo_out[2].write(norm_yaw);
         }
