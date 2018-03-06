@@ -51,6 +51,7 @@
 #define CRC_INITIAL_VALUE 0x00
 
 
+
 VCP* uartPtr = NULL;
 
 enum ParseState {
@@ -62,7 +63,14 @@ enum ParseState {
 volatile float roll_command;
 volatile float pitch_command;
 volatile float yaw_command;
+volatile float norm_roll;
+volatile float norm_pitch;
+volatile float norm_yaw;
+
+static float RAD_RANGE = 3.14159;
+
 volatile long time_of_last_command;
+volatile long time_of_last_blink;
 
 
 // serial
@@ -83,6 +91,9 @@ bool parse_in_byte(uint8_t c);
 
 uint8_t _crc8_ccitt_update (uint8_t inCrc, uint8_t inData);
 
+void blink_led();
+void norm_commands();
+
 //==================================================================
 // handle received serial data
 //==================================================================
@@ -94,8 +105,9 @@ void rx_callback(uint8_t byte)
         unpack_in_payload(in_payload_buf, &roll, &pitch, &yaw);
         handle_in_msg(roll, pitch, yaw);
     }
-    uartPtr->put_byte(byte);
-    uartPtr->flush();
+    // Use the following lines if you want to echo back what you received.
+//    uartPtr->put_byte(byte);
+//    uartPtr->flush();
 }
 
 //==================================================================
@@ -151,7 +163,7 @@ bool parse_in_byte(uint8_t c)
         if (c == in_crc_value)
         {
             got_message = true;
-            info.toggle();
+            blink_led();
         }
         parse_state = PARSE_STATE_IDLE;
         break;
@@ -187,6 +199,45 @@ uint8_t _crc8_ccitt_update (uint8_t inCrc, uint8_t inData)
 }
 
 
+//==================================================================
+// Blink LED while receiving data for hardware debugging
+//==================================================================
+void blink_led()
+{
+    if(millis() - time_of_last_blink >= 100)
+    {
+        time_of_last_blink = millis();
+        info.toggle();
+    }
+}
+
+//==================================================================
+// Normalize angle commands for servo writing function
+//==================================================================
+void norm_commands()
+{
+    norm_roll = roll_command/RAD_RANGE;
+    norm_pitch = pitch_command/RAD_RANGE;
+    norm_yaw = yaw_command/RAD_RANGE;
+
+    if (norm_roll > 1.0)
+        norm_roll = 1.0;
+    else if (norm_roll < 0.0)
+        norm_roll = 0.0;
+
+    if (norm_pitch > 1.0)
+        norm_pitch = 1.0;
+    else if (norm_pitch < 0.0)
+        norm_pitch = 0.0;
+
+    if (norm_yaw > 1.0)
+        norm_yaw = 1.0;
+    else if (norm_yaw < 0.0)
+        norm_yaw = 0.0;
+
+}
+
+
 int main() {
     systemInit();
 
@@ -213,6 +264,10 @@ int main() {
         {
             uint8_t byte = vcp.read_byte();
             rx_callback(byte);
+            norm_commands();
+//            servo_out[0].write(norm_roll);
+            servo_out[1].write(norm_pitch);
+            servo_out[2].write(norm_yaw);
         }
     }
 }
