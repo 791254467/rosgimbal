@@ -67,7 +67,24 @@ volatile float norm_roll;
 volatile float norm_pitch;
 volatile float norm_yaw;
 
+// This value is the total range in radians the servo can travel.
 static float RAD_RANGE = 3.14159;
+
+// Offset values for aligning gimbal servos with desired coordinate frame.
+// Radians. Must be positive.
+static float roll_offset = 0;
+static float pitch_offset = -0.45;
+static float yaw_offset = 0;
+
+// Limit the servo travel for mechanical restrictions.
+// These are normalized values for the write function. Between 0 and 1.
+static float roll_lower_limit = 0;
+static float pitch_lower_limit = 0;
+static float yaw_lower_limit = 0;
+
+static float roll_upper_limit = 1.0;
+static float pitch_upper_limit = 2.15/RAD_RANGE;
+static float yaw_upper_limit = 1.0;
 
 volatile long time_of_last_command;
 volatile long time_of_last_blink;
@@ -216,24 +233,24 @@ void blink_led()
 //==================================================================
 void norm_commands()
 {
-    norm_roll = roll_command/RAD_RANGE;
-    norm_pitch = pitch_command/RAD_RANGE;
-    norm_yaw = yaw_command/RAD_RANGE;
+    norm_roll = (roll_command+roll_offset)/RAD_RANGE;
+    norm_pitch = -(pitch_command+pitch_offset)/RAD_RANGE;
+    norm_yaw = (yaw_command+yaw_offset)/RAD_RANGE;
 
-    if (norm_roll > 1.0)
-        norm_roll = 1.0;
-    else if (norm_roll < 0.0)
-        norm_roll = 0.0;
+    if (norm_roll > roll_upper_limit)
+        norm_roll = roll_upper_limit;
+    else if (norm_roll < roll_lower_limit)
+        norm_roll = roll_lower_limit;
 
-    if (norm_pitch > 1.0)
-        norm_pitch = 1.0;
-    else if (norm_pitch < 0.0)
-        norm_pitch = 0.0;
+    if (norm_pitch > pitch_upper_limit)
+        norm_pitch = pitch_upper_limit;
+    else if (norm_pitch < pitch_lower_limit)
+        norm_pitch = pitch_lower_limit;
 
-    if (norm_yaw > 1.0)
-        norm_yaw = 1.0;
-    else if (norm_yaw < 0.0)
-        norm_yaw = 0.0;
+    if (norm_yaw > yaw_upper_limit)
+        norm_yaw = yaw_upper_limit;
+    else if (norm_yaw < yaw_lower_limit)
+        norm_yaw = yaw_lower_limit;
 
 }
 
@@ -251,12 +268,14 @@ int main() {
 
     info.init(LED2_GPIO, LED2_PIN);
 
-    PWM_OUT servo_out[PWM_NUM_OUTPUTS];
-    for (int i = 0; i < PWM_NUM_OUTPUTS; ++i)
+    PWM_OUT servo_out[3];
+    for (int i = 0; i < 3; ++i)
     {
-        servo_out[i].init(&pwm_config[i], 50, 2700, 600); // This works for a 9g servo.
-        servo_out[i].write(0.0);
+        servo_out[i].init(&pwm_config[i], 300, 2470, 530); // This works a BL815H servo.
     }
+    servo_out[0].write(roll_offset/RAD_RANGE);
+    servo_out[1].write(-pitch_offset/RAD_RANGE);
+    servo_out[2].write(yaw_offset/RAD_RANGE);
 
     while(1)
     {
@@ -265,9 +284,18 @@ int main() {
             uint8_t byte = vcp.read_byte();
             rx_callback(byte);
             norm_commands();
-            //            servo_out[0].write(norm_roll);
-            servo_out[1].write(norm_pitch);
-            servo_out[2].write(norm_yaw);
+            if (roll_command > 500 && roll_command < 2500 || pitch_command > 500 && pitch_command < 2500 || yaw_command > 500 && yaw_command < 2500)
+            {
+                //            servo_out[0].writeUs(roll_command);
+                servo_out[1].writeUs(pitch_command);
+                servo_out[2].writeUs(yaw_command);
+            }
+            else
+            {
+                //            servo_out[0].write(norm_roll);
+                servo_out[1].write(norm_pitch);
+                servo_out[2].write(norm_yaw);
+            }
         }
     }
 }
