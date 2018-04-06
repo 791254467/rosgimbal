@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, James Jackson, Dallin Briggs
+ * Copyright (c) 2018, Dallin Briggs
  *
  * All rights reserved.
  *
@@ -37,10 +37,10 @@
 #include "revo_f4.h"
 
 // serial communication
-#define OUT_BUFFER_SIZE 14
+#define OUT_BUFFER_SIZE 18
 #define OUT_START_BYTE 0xA5
-#define OUT_PAYLOAD_LENGTH 12
-#define OUT_MESSAGE_LENGTH 14
+#define OUT_PAYLOAD_LENGTH 16
+#define OUT_MESSAGE_LENGTH 18
 
 #define IN_BUFFER_SIZE 14
 #define IN_START_BYTE 0xA5
@@ -89,6 +89,8 @@ static float yaw_upper_limit = 1.0;
 volatile long time_of_last_command;
 volatile long time_of_last_blink;
 
+volatile int crc_error_count;
+
 
 // serial
 uint8_t out_buf[OUT_BUFFER_SIZE];
@@ -98,6 +100,7 @@ ParseState parse_state;
 uint8_t in_payload_buf[IN_PAYLOAD_LENGTH];
 int in_payload_index;
 uint8_t in_crc_value;
+uint8_t out_crc_value;
 
 LED info;
 
@@ -106,10 +109,12 @@ void handle_in_msg(float roll, float pitch, float yaw);
 void unpack_in_payload(uint8_t buf[IN_PAYLOAD_LENGTH], float *roll, float *pitch, float *yaw);
 bool parse_in_byte(uint8_t c);
 
-uint8_t _crc8_ccitt_update (uint8_t inCrc, uint8_t inData);
+uint8_t in_crc8_ccitt_update (uint8_t inCrc, uint8_t inData);
+uint8_t out_crc8_ccitt_update (uint8_t outCrc, uint8_t outData);
 
 void blink_led();
 void norm_commands();
+void tx_callback();
 
 //==================================================================
 // handle received serial data
@@ -160,7 +165,7 @@ bool parse_in_byte(uint8_t c)
         if (c == IN_START_BYTE)
         {
             in_crc_value = CRC_INITIAL_VALUE;
-            in_crc_value = _crc8_ccitt_update(in_crc_value, c);
+            in_crc_value = in_crc8_ccitt_update(in_crc_value, c);
 
             in_payload_index = 0;
             parse_state = PARSE_STATE_GOT_START_BYTE;
@@ -168,7 +173,7 @@ bool parse_in_byte(uint8_t c)
         break;
 
     case PARSE_STATE_GOT_START_BYTE:
-        in_crc_value = _crc8_ccitt_update(in_crc_value, c);
+        in_crc_value = in_crc8_ccitt_update(in_crc_value, c);
         in_payload_buf[in_payload_index++] = c;
         if (in_payload_index == IN_PAYLOAD_LENGTH)
         {
@@ -182,6 +187,10 @@ bool parse_in_byte(uint8_t c)
             got_message = true;
             blink_led();
         }
+        else
+        {
+            crc_error_count += 1;
+        }
         parse_state = PARSE_STATE_IDLE;
         break;
     }
@@ -191,16 +200,16 @@ bool parse_in_byte(uint8_t c)
 
 
 //==================================================================
-// handle crc
+// handle in crc
 //==================================================================
-uint8_t _crc8_ccitt_update (uint8_t inCrc, uint8_t inData)
+uint8_t in_crc8_ccitt_update (uint8_t inCrc, uint8_t inData)
 {
     uint8_t   i;
     uint8_t   data;
 
     data = inCrc ^ inData;
 
-    for ( i = 0; i < 12; i++ )
+    for ( i = 0; i < IN_PAYLOAD_LENGTH; i++ )
     {
         if (( data & 0x80 ) != 0 )
         {
@@ -213,6 +222,51 @@ uint8_t _crc8_ccitt_update (uint8_t inCrc, uint8_t inData)
         }
     }
     return data;
+}
+
+//==================================================================
+// handle out crc
+//==================================================================
+uint8_t out_crc8_ccitt_update (uint8_t outCrc, uint8_t outData)
+{
+    uint8_t   i;
+    uint8_t   data;
+
+    data = outCrc ^ outData;
+
+    for ( i = 0; i < OUT_PAYLOAD_LENGTH; i++ )
+    {
+        if (( data & 0x80 ) != 0 )
+        {
+            data <<= 1;
+            data ^= 0x07;
+        }
+        else
+        {
+            data <<= 1;
+        }
+    }
+    return data;
+}
+
+//==================================================================
+// Serialize the out message
+//==================================================================
+void tx_callback(int error, float roll, float pitch, float yaw)
+{
+    uint8_t out_buf[OUT_MESSAGE_LENGTH];
+    out_buf[0] = OUT_START_BYTE;
+    memcpy(out_buf+1, &error, sizeof(int));
+    memcpy(out_buf+4, &roll, sizeof(float));
+    memcpy(out_buf+9, &pitch, sizeof(float));
+    memcpy(out_buf+13, &yaw, sizeof(float));
+
+    uint8_t out_crc_value = CRC_INITIAL_VALUE;
+    for (int i = 0; i < OUT_MESSAGE_LENGTH - CRC_LENGTH; i++)
+    {
+        out_crc_value = out_crc8_ccitt_update(out_crc_value, out_buf[i]);
+    }
+    out_buf[OUT_MESSAGE_LENGTH - 1] = out_crc_value;
 }
 
 
@@ -265,13 +319,16 @@ int main() {
 
     parse_state = PARSE_STATE_IDLE;
 
+    crc_error_count = 0;
+
 
     info.init(LED2_GPIO, LED2_PIN);
 
     PWM_OUT servo_out[3];
     for (int i = 0; i < 3; ++i)
     {
-        servo_out[i].init(&pwm_config[i], 300, 2470, 530); // This works a BL815H servo.
+//        servo_out[i].init(&pwm_config[i], 300, 2470, 530); // This works for a BL815H servo.
+        servo_out[i].init(&pwm_config[i], 50, 2400, 600); // This works for a 9g servo.
     }
     servo_out[0].write(roll_offset/RAD_RANGE);
     servo_out[1].write(-pitch_offset/RAD_RANGE);
@@ -295,11 +352,10 @@ int main() {
                 //            servo_out[0].write(norm_roll);
                 servo_out[1].write(norm_pitch);
                 servo_out[2].write(norm_yaw);
+                tx_callback(crc_error_count, roll_command, pitch_command, yaw_command);
+                vcp.write(out_buf, OUT_MESSAGE_LENGTH);
+                vcp.flush();
             }
         }
     }
 }
-
-
-
-
