@@ -90,6 +90,8 @@ volatile long time_of_last_command;
 volatile long time_of_last_blink;
 
 volatile uint32_t crc_error_count;
+volatile uint32_t start_byte_error;
+volatile uint32_t payload_index_error;
 
 
 // serial
@@ -169,6 +171,10 @@ bool parse_in_byte(uint8_t c)
 
             in_payload_index = 0;
             parse_state = PARSE_STATE_GOT_START_BYTE;
+        }
+        else
+        {
+            start_byte_error += 1;
         }
         break;
 
