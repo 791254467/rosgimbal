@@ -89,7 +89,7 @@ static float yaw_upper_limit = 1.0;
 volatile long time_of_last_command;
 volatile long time_of_last_blink;
 
-volatile int crc_error_count;
+volatile uint32_t crc_error_count;
 
 
 // serial
@@ -252,12 +252,11 @@ uint8_t out_crc8_ccitt_update (uint8_t outCrc, uint8_t outData)
 //==================================================================
 // Serialize the out message
 //==================================================================
-void tx_callback(int error, float roll, float pitch, float yaw)
+void tx_callback(uint32_t error, float roll, float pitch, float yaw)
 {
-    uint8_t out_buf[OUT_MESSAGE_LENGTH];
     out_buf[0] = OUT_START_BYTE;
-    memcpy(out_buf+1, &error, sizeof(int));
-    memcpy(out_buf+4, &roll, sizeof(float));
+    memcpy(out_buf+1, &error, sizeof(uint32_t));
+    memcpy(out_buf+5, &roll, sizeof(float));
     memcpy(out_buf+9, &pitch, sizeof(float));
     memcpy(out_buf+13, &yaw, sizeof(float));
 
