@@ -37,10 +37,10 @@
 #include "revo_f4.h"
 
 // serial communication
-#define OUT_BUFFER_SIZE 18
+#define OUT_BUFFER_SIZE 22
 #define OUT_START_BYTE 0xA5
-#define OUT_PAYLOAD_LENGTH 16
-#define OUT_MESSAGE_LENGTH 18
+#define OUT_PAYLOAD_LENGTH 20
+#define OUT_MESSAGE_LENGTH 22
 
 #define IN_BUFFER_SIZE 14
 #define IN_START_BYTE 0xA5
@@ -88,10 +88,13 @@ static float yaw_upper_limit = 1.0;
 
 volatile long time_of_last_command;
 volatile long time_of_last_blink;
+volatile long time_of_last_servo;
 
 volatile uint32_t crc_error_count;
 volatile uint32_t start_byte_error;
 volatile uint32_t payload_index_error;
+volatile float command_in_rate;
+volatile float servo_command_rate;
 
 
 // serial
@@ -117,6 +120,7 @@ uint8_t out_crc8_ccitt_update (uint8_t outCrc, uint8_t outData);
 void blink_led();
 void norm_commands();
 void tx_callback();
+void calc_command_rate();
 
 //==================================================================
 // handle received serial data
@@ -129,9 +133,6 @@ void rx_callback(uint8_t byte)
         unpack_in_payload(in_payload_buf, &roll, &pitch, &yaw);
         handle_in_msg(roll, pitch, yaw);
     }
-    // Use the following lines if you want to echo back what you received.
-    //    uartPtr->put_byte(byte);
-    //    uartPtr->flush();
 }
 
 //==================================================================
@@ -139,6 +140,7 @@ void rx_callback(uint8_t byte)
 //==================================================================
 void handle_in_msg(float roll, float pitch, float yaw)
 {
+    calc_command_rate();
     time_of_last_command = millis();
     roll_command = roll;
     pitch_command = pitch;
@@ -258,13 +260,14 @@ uint8_t out_crc8_ccitt_update (uint8_t outCrc, uint8_t outData)
 //==================================================================
 // Serialize the out message
 //==================================================================
-void tx_callback(uint32_t error, float roll, float pitch, float yaw)
+void tx_callback(float command_rate, float servo_rate, float roll, float pitch, float yaw)
 {
     out_buf[0] = OUT_START_BYTE;
-    memcpy(out_buf+1, &error, sizeof(uint32_t));
-    memcpy(out_buf+5, &roll, sizeof(float));
-    memcpy(out_buf+9, &pitch, sizeof(float));
-    memcpy(out_buf+13, &yaw, sizeof(float));
+    memcpy(out_buf+1, &command_rate, sizeof(float));
+    memcpy(out_buf+5, &servo_rate, sizeof(float));
+    memcpy(out_buf+9, &roll, sizeof(float));
+    memcpy(out_buf+13, &pitch, sizeof(float));
+    memcpy(out_buf+17, &yaw, sizeof(float));
 
     uint8_t out_crc_value = CRC_INITIAL_VALUE;
     for (int i = 0; i < OUT_MESSAGE_LENGTH - CRC_LENGTH; i++)
@@ -313,6 +316,11 @@ void norm_commands()
 
 }
 
+void calc_command_rate()
+{
+    command_in_rate = 1000.0/float(millis() - time_of_last_command);
+}
+
 
 int main() {
     systemInit();
@@ -324,16 +332,18 @@ int main() {
 
     parse_state = PARSE_STATE_IDLE;
 
-    crc_error_count = 0;
+    command_in_rate = 0.0;
+    servo_command_rate = 0.0;
 
 
     info.init(LED2_GPIO, LED2_PIN);
 
     PWM_OUT servo_out[3];
+    int servo_frequency = 50;
     for (int i = 0; i < 3; ++i)
     {
-//        servo_out[i].init(&pwm_config[i], 300, 2470, 530); // This works for a BL815H servo.
-        servo_out[i].init(&pwm_config[i], 50, 2400, 600); // This works for a 9g servo.
+//        servo_out[i].init(&pwm_config[i], servo_frequency, 2470, 530); // This works for a BL815H servo.
+        servo_out[i].init(&pwm_config[i], servo_frequency, 2400, 600); // This works for a 9g servo.
     }
     servo_out[0].write(roll_offset/RAD_RANGE);
     servo_out[1].write(-pitch_offset/RAD_RANGE);
@@ -355,12 +365,15 @@ int main() {
             else
             {
                 //            servo_out[0].write(norm_roll);
+                servo_command_rate = 1000.0 / float(millis() - time_of_last_servo);
+
                 servo_out[1].write(norm_pitch);
                 servo_out[2].write(norm_yaw);
-                tx_callback(crc_error_count, roll_command, pitch_command, yaw_command);
+                tx_callback(command_in_rate, servo_command_rate, roll_command, pitch_command, yaw_command);
                 vcp.write(out_buf, OUT_MESSAGE_LENGTH);
                 vcp.flush();
             }
         }
+        time_of_last_servo = millis();
     }
 }
