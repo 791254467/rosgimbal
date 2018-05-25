@@ -35,8 +35,12 @@ public:
         PARSE_STATE_GOT_PAYLOAD
     };
 
+    ParseState parse_state;
+
+    void rx_callback(uint8_t byte);
+
 private:
-    VCP* uartPtr = NULL;
+//    VCP* uartPtr = NULL;
     bool parse_in_byte(uint8_t c);
 
     void handle_in_msg(float roll, float pitch, float yaw);
@@ -49,7 +53,7 @@ private:
     void norm_commands();
     void calc_command_rate();
 
-    void rx_callback(uint8_t byte);
+//    void rx_callback(uint8_t byte);
     void tx_callback(float command_rate, float servo_rate, float roll, float pitch, float yaw);
 
     volatile float roll_command;
@@ -88,7 +92,7 @@ private:
     float command_in_rate;
     float servo_command_rate;
 
-    ParseState parse_state;
+//    ParseState parse_state;
 
     // serial
     uint8_t out_buf[OUT_BUFFER_SIZE];
@@ -101,7 +105,10 @@ private:
 
     LED info;
 
+
+
 protected:
+
 
 };
 

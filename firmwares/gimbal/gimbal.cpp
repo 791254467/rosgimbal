@@ -35,9 +35,11 @@ namespace gimbal{
 
 
 Gimbal::Gimbal()
-    :uartPtr
 {
-
+//    VCP vcp;
+//    vcp.init();
+//    uartPtr = &vcp;
+//    vcp.register_rx_callback(&rx_callback);
 }
 //==================================================================
 // handle received serial data
@@ -242,14 +244,16 @@ void Gimbal::calc_command_rate()
 
 int main() {
     systemInit();
-    gimbal::Gimbal gimb;
+    gimbal::Gimbal gimbal_obj;
 
     VCP vcp;
+    VCP* uartPtr = NULL;
+
     vcp.init();
     uartPtr = &vcp;
-    vcp.register_rx_callback(&rx_callback);
+    vcp.register_rx_callback(&gimbal::Gimbal::rx_callback);
 
-    parse_state = PARSE_STATE_IDLE;
+    gimbal_obj.parse_state = gimbal::Gimbal::ParseState::PARSE_STATE_IDLE;
 
     command_in_rate = 0.0;
     servo_command_rate = 0.0;
