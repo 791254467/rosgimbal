@@ -289,7 +289,7 @@ int main() {
             {
                 //            servo_out[0].write(norm_roll);
                 gimbal_obj.servo_command_rate = 1000.0 / float(millis() - gimbal_obj.time_of_last_servo);
-
+                gimbal_obj.time_of_last_servo = millis();
                 servo_out[1].write(gimbal_obj.norm_pitch);
                 servo_out[2].write(gimbal_obj.norm_yaw);
                 gimbal_obj.tx_callback(gimbal_obj.command_in_rate, gimbal_obj.servo_command_rate,
@@ -298,6 +298,6 @@ int main() {
                 vcp.flush();
             }
         }
-        gimbal_obj.time_of_last_servo = millis();
+
     }
 }
