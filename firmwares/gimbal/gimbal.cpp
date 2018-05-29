@@ -245,6 +245,12 @@ void Gimbal::calc_command_rate()
     command_in_rate = 1000.0/float(millis() - time_of_last_command);
 }
 
+void Gimbal::calc_servo_rate()
+{
+    servo_command_rate = 1000.0 / float(millis() - time_of_last_servo);
+    time_of_last_servo = millis();
+}
+
 } // End gimbal namespace
 
 
@@ -288,8 +294,7 @@ int main() {
             else
             {
                 //            servo_out[0].write(norm_roll);
-                gimbal_obj.servo_command_rate = 1000.0 / float(millis() - gimbal_obj.time_of_last_servo);
-                gimbal_obj.time_of_last_servo = millis();
+                gimbal_obj.calc_servo_rate();
                 servo_out[1].write(gimbal_obj.norm_pitch);
                 servo_out[2].write(gimbal_obj.norm_yaw);
                 gimbal_obj.tx_callback(gimbal_obj.command_in_rate, gimbal_obj.servo_command_rate,

@@ -20,6 +20,7 @@ public:
     void rx_callback(uint8_t byte);
     void norm_commands();
     void tx_callback(float command_rate, float servo_rate, float roll, float pitch, float yaw);
+    void calc_servo_rate();
 
 
     // Variables
