@@ -29,52 +29,50 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef VCP_CLASS_H
-#define VCP_CLASS_H
+#include "system.h"
+#include "uart.h"
+#include "rc_sbus.h"
+#include "vcp.h"
+#include "printf.h"
 
 #include "revo_f4.h"
 
-#include "serial.h"
-#include "gpio.h"
+VCP* uartPtr = NULL;
 
-extern "C" {
-#include "stm32f4xx_conf.h"
-#include "usbd_cdc_core.h"
-#include "usb_conf.h"
-#include "usbd_desc.h"
-#include "usbd_cdc_vcp.h"
-#include "usbd_usr.h"
-#include "usbd_ioreq.h"
+static void _putc(void *p, char c)
+{
+    (void)p; // avoid compiler warning about unused variable
+    uartPtr->put_byte(c);
 }
 
-
-class VCP : Serial
+int main()
 {
-public:
-  void init();
-  void write(const uint8_t *ch, uint8_t len);
-  uint32_t rx_bytes_waiting();
-  uint32_t tx_bytes_free();
-  uint8_t read_byte();
-  bool set_baud_rate(uint32_t baud);
-  bool tx_buffer_empty();
-  void put_byte(uint8_t ch);
-  bool flush();
-  void register_rx_callback(std::function<void(uint8_t)> cb);
-  void unregister_rx_callback();
+  static GPIO inv_pin;
+  static UART uart;
+  static RC_SBUS rc;
+  static VCP vcp;
 
-  std::function<void(uint8_t)> cb_;
+  systemInit();
+  vcp.init();
+  uartPtr = &vcp;
+  init_printf(NULL, _putc);
 
-private:
 
-  void send_disconnect_signal();
+  uart.init(&uart_config[0], 100000, UART::MODE_8E2);
+  inv_pin.init(SBUS_INV_GPIO, SBUS_INV_PIN, GPIO::OUTPUT);
+  rc.init(&inv_pin, &uart);
 
-  uint8_t bulk_mode_buffer[64];
-  uint8_t bulk_mode_buffer_index;
-  bool bulk_mode;
 
-  GPIO rx_pin_;
-  GPIO tx_pin_;
-};
+  float rc_raw[16];
+  while(1)
+  {
+    for(int i = 0; i < 8; i++)
+    {
+      rc_raw[i] = rc.read(i);
+      printf("%d, ", (uint32_t)(rc_raw[i]*1000));
+    }
+    printf("\n");
+    delay(20);
+  }
 
-#endif 
+}

@@ -26,7 +26,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-TARGET = spi
+TARGET = rc_sbus
 
 BOARD ?= REVO
 
@@ -111,10 +111,6 @@ USBOTG_SRC := $(filter-out ${EXCLUDES}, $(USBOTG_SRC))
 VPATH := $(VPATH):$(VCP_DIR)
 VCP_SRC = $(notdir $(wildcard $(VCP_DIR)/*.c))
 
-# Add printf source files
-VPATH := $(VPATH):$(PRINTF_DIR)
-PRINTF_SRC = printf.cpp
-
 # Make a list of source files and includes
 VPATH := $(VPATH):$(SRC_DIR)
 CSOURCES =  $(CMSIS_SRC) \
@@ -127,14 +123,13 @@ CSOURCES =  $(CMSIS_SRC) \
             system.c \
             system_stm32f4xx.c
 
-
-CXXSOURCES = $(PRINTF_SRC) \
-			 gpio.cpp \
-             led.cpp \
-             main.cpp \
-             vcp.cpp \
-             spi.cpp \
-             M25P16.cpp
+CXXSOURCES = $(SRC_DIR)/gpio.cpp \
+             $(SRC_DIR)/led.cpp \
+             $(SRC_DIR)/uart.cpp \
+             $(SRC_DIR)/rc_sbus.cpp \
+             $(SRC_DIR)/vcp.cpp \
+             $(PRINTF_DIR)/printf.cpp \
+             main.cpp
 
 INCLUDE_DIRS =  $(SRC_DIR) \
                 $(ROOT)/include \
@@ -190,7 +185,7 @@ FILE_SIZE_FLAGS += -ffunction-sections -fdata-sections -fno-exceptions
 CXX_FILE_SIZE_FLAGS = $(C_FILE_SIZE_FLAGS) -fno-rtti
 
 MCFLAGS=-mcpu=cortex-m4 -mthumb -march=armv7e-m -mfloat-abi=hard -mfpu=fpv4-sp-d16 -fsingle-precision-constant -Wdouble-promotion
-DEFS=-DSTM32F40_41xxx -D__CORTEX_M4 -D__FPU_PRESENT -DWORDS_STACK_SIZE=200 -DUSE_STDPERIPH_DRIVER -DTARGET_$(BOARD)
+DEFS=-DSTM32F40_41xxx -D__CORTEX_M4 -D__FPU_PRESENT -DWORDS_STACK_SIZE=200 -DUSE_STDPERIPH_DRIVER -DTARGET_$(BOARD) -DHSE_VALUE=8000000
 CFLAGS=-c $(MCFLAGS) $(DEFS) $(OPTIMIZE) $(DEBUG_FLAGS) $(FILE_SIZE_FLAGS) $(addprefix -I,$(INCLUDE_DIRS)) -std=c99
 CXXFLAGS=-c $(MCFLAGS) $(DEFS) $(OPTIMIZE) $(DEBUG_FLAGS) $(CXX_FILE_SIZE_FLAGS) $(CXX_STRICT_FLAGS) $(addprefix -I,$(INCLUDE_DIRS)) -std=c++11
 LDFLAGS =-T $(LDSCRIPT) $(MCFLAGS) -lm -lc --specs=nano.specs --specs=rdimon.specs $(ARCH_FLAGS)  $(LTO_FLAGS)  $(DEBUG_FLAGS) -static  -Wl,-gc-sections
@@ -234,3 +229,4 @@ clean:
 
 flash: $(TARGET_BIN)
 	dfu-util -a 0 -s 0x08000000 -D $(TARGET_BIN)
+

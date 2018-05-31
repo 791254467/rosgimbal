@@ -47,12 +47,19 @@ public:
   void disable(GPIO& cs);
 
   bool transfer(uint8_t *out_data, uint32_t num_bytes, uint8_t* in_data, GPIO* cs = NULL, void (*cb)(void) = NULL);
+  bool write(const uint8_t *out_data, uint32_t num_bytes, GPIO* cs = NULL);
   uint8_t transfer_byte(uint8_t data, GPIO* cs = NULL);
 
   void transfer_complete_cb();
   inline bool is_busy() {return busy_;}
 
 private:
+  
+  void perform_transfer();
+  uint8_t* in_buffer_ptr_;
+  const uint8_t* out_buffer_ptr_;
+  uint32_t num_bytes_;
+  
   const spi_hardware_struct_t* c_;
   GPIO mosi_;
   GPIO miso_;
@@ -62,6 +69,6 @@ private:
 
   uint32_t errors_ = 0;
   GPIO* cs_;
-  bool busy_ = false;
+  volatile bool busy_ = false;
   void (*transfer_cb_)(void) = NULL;
 };

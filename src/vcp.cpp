@@ -33,7 +33,7 @@
 
 #define USB_TIMEOUT  50
 
-VCP* vcpPtr = nullptr;
+static VCP* vcpPtr = nullptr;
 
 void vcp_rx_callback(uint8_t byte)
 {
@@ -53,7 +53,7 @@ void VCP::init()
   vcpPtr = this;
 }
 
-void VCP::write(uint8_t*ch, uint8_t len)
+void VCP::write(const uint8_t*ch, uint8_t len)
 {
   uint32_t start = millis();
   while (len > 0)
@@ -90,9 +90,6 @@ uint8_t VCP::read_byte()
     return 0;
 }
 
-
-bool VCP::set_baud_rate(uint32_t baud){}
-
 bool VCP::tx_buffer_empty()
 {
   return CDC_Send_FreeBytes() > 0;
@@ -106,6 +103,7 @@ void VCP::put_byte(uint8_t ch)
 bool VCP::flush()
 {
   CDC_flush();
+  return true;
 }
 
 
