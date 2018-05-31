@@ -39,7 +39,6 @@ static uint8_t dummy_buffer[256];
 
 void SPI::init(const spi_hardware_struct_t *c)
 {
-  GPIO_InitTypeDef gpio_init_struct;
   SPI_InitTypeDef  spi_init_struct;
 
   c_ = c;
@@ -92,7 +91,7 @@ void SPI::init(const spi_hardware_struct_t *c)
   DMA_InitStructure_.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
   DMA_InitStructure_.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
   DMA_InitStructure_.DMA_Channel = c_->DMA_Channel;
-  DMA_InitStructure_.DMA_PeripheralBaseAddr = (uint32_t)(&(c_->dev->DR));
+  DMA_InitStructure_.DMA_PeripheralBaseAddr = reinterpret_cast<uint32_t>(&(c_->dev->DR));
   DMA_InitStructure_.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
   DMA_InitStructure_.DMA_Priority = DMA_Priority_High;
 
@@ -129,6 +128,7 @@ void SPI::set_divisor(uint16_t new_divisor) {
     temp |= SPI_BaudRatePrescaler_16;
     break;
   case 32:
+  default:
     temp |= SPI_BaudRatePrescaler_32;
     break;
   case 64:
@@ -181,60 +181,71 @@ uint8_t SPI::transfer_byte(uint8_t data, GPIO *cs)
   if (cs)
     disable(*cs);
 
-  return (uint8_t)SPI_I2S_ReceiveData(c_->dev);
+  return static_cast<uint8_t>(SPI_I2S_ReceiveData(c_->dev));
 }
 
-bool SPI::transfer(uint8_t* out_data, uint32_t num_bytes, uint8_t* in_data, GPIO* cs, void (*cb)(void))
+bool SPI::write(const uint8_t *out_data, uint32_t num_bytes, GPIO* cs)
+{
+	busy_ = true;
+  
+	// Save Job parameters
+	in_buffer_ptr_ = dummy_buffer;
+	out_buffer_ptr_ = (out_data == NULL) ? dummy_buffer : out_data;
+	cs_ = cs;
+	transfer_cb_ = NULL;  
+	num_bytes_ = num_bytes;
+  
+	perform_transfer();
+	return true;
+	
+}
+
+bool SPI::transfer(uint8_t *out_data, uint32_t num_bytes, uint8_t* in_data, GPIO* cs, void (*cb)(void))
 {
   busy_ = true;
 
-  // Point null arrays to dummy buffer so we have something to point to
-  if (out_data == NULL)
-    out_data = dummy_buffer;
-  if (in_data == NULL)
-    in_data = dummy_buffer;
+  // Save Job parameters
+  in_buffer_ptr_ = (in_data == NULL) ? dummy_buffer : in_data;
+  out_buffer_ptr_ = (out_data == NULL) ? dummy_buffer : out_data;
+  cs_ = cs;
+  transfer_cb_ = cb;  
+  num_bytes_ = num_bytes;
 
-  // Connect with transfer callback
-  if (cb)
-    transfer_cb_ = cb;
-  else
-    transfer_cb_ = NULL;
+  perform_transfer();
+  return true;
+}
 
-  // Configure the DMA
-  DMA_DeInit(c_->Tx_DMA_Stream); //SPI1_TX_DMA_STREAM
-  DMA_DeInit(c_->Rx_DMA_Stream); //SPI1_RX_DMA_STREAM
-
-  DMA_InitStructure_.DMA_BufferSize = num_bytes;
-
-  // Configure Tx DMA
-  DMA_InitStructure_.DMA_DIR = DMA_DIR_MemoryToPeripheral;
-  DMA_InitStructure_.DMA_Memory0BaseAddr = (uint32_t) out_data;
-  DMA_Init(c_->Tx_DMA_Stream, &DMA_InitStructure_);
-
-  // Configure Rx DMA
-  DMA_InitStructure_.DMA_DIR = DMA_DIR_PeripheralToMemory;
-  DMA_InitStructure_.DMA_Memory0BaseAddr = (uint32_t) in_data;
-  DMA_Init(c_->Rx_DMA_Stream, &DMA_InitStructure_);
-
-  //  Configure the Interrupt
-  DMA_ITConfig(c_->Tx_DMA_Stream, DMA_IT_TC, ENABLE);
-
-  if (cs != NULL)
-  {
-    enable(*cs);
-    cs_ = cs;
-  }
-  else
-    cs_ = NULL;
-
-  // Turn on the DMA streams
-  DMA_Cmd(c_->Tx_DMA_Stream, ENABLE);
-  DMA_Cmd(c_->Rx_DMA_Stream, ENABLE);
-
-  // Enable the SPI Rx/Tx DMA request
-  SPI_I2S_DMACmd(c_->dev, SPI_I2S_DMAReq_Rx, ENABLE);
-  SPI_I2S_DMACmd(c_->dev, SPI_I2S_DMAReq_Tx, ENABLE);
-
+void SPI::perform_transfer()
+{
+	// Configure the DMA
+	DMA_DeInit(c_->Tx_DMA_Stream); //SPI1_TX_DMA_STREAM
+	DMA_DeInit(c_->Rx_DMA_Stream); //SPI1_RX_DMA_STREAM
+  
+	DMA_InitStructure_.DMA_BufferSize = num_bytes_;
+  
+	// Configure Tx DMA
+	DMA_InitStructure_.DMA_DIR = DMA_DIR_MemoryToPeripheral;
+	DMA_InitStructure_.DMA_Memory0BaseAddr = reinterpret_cast<uint32_t>(out_buffer_ptr_);
+	DMA_Init(c_->Tx_DMA_Stream, &DMA_InitStructure_);
+  
+	// Configure Rx DMA
+	DMA_InitStructure_.DMA_DIR = DMA_DIR_PeripheralToMemory;
+	DMA_InitStructure_.DMA_Memory0BaseAddr = reinterpret_cast<uint32_t>(in_buffer_ptr_);
+	DMA_Init(c_->Rx_DMA_Stream, &DMA_InitStructure_);
+  
+	//  Configure the Interrupt
+	DMA_ITConfig(c_->Tx_DMA_Stream, DMA_IT_TC, ENABLE);
+  
+	if (cs_ != NULL)
+	  enable(*cs_);
+  
+	// Turn on the DMA streams
+	DMA_Cmd(c_->Tx_DMA_Stream, ENABLE);
+	DMA_Cmd(c_->Rx_DMA_Stream, ENABLE);
+  
+	// Enable the SPI Rx/Tx DMA request
+	SPI_I2S_DMACmd(c_->dev, SPI_I2S_DMAReq_Rx, ENABLE);
+	SPI_I2S_DMACmd(c_->dev, SPI_I2S_DMAReq_Tx, ENABLE);
 }
 
 

@@ -44,16 +44,16 @@ void SysTick_Handler(void)
 }
 
 // Return system uptime in microseconds (rollover in 1.5 days)
-uint64_t micros(void)
+volatile uint64_t micros(void)
 {
 
-  return ((uint64_t)sysTickUptime * 3125ul)/100ul;  // The convsersion is 31.25, so doing fixed-point math to be exact
+  return ((volatile uint64_t)sysTickUptime * 3125ul)/100ul;  // The convsersion is 31.25, so doing fixed-point math to be exact
 }
 
 // Return system uptime in milliseconds (rollover in 1.5 days)
-uint32_t millis(void)
+volatile uint32_t millis(void)
 {
-    return (uint32_t)(sysTickUptime >> 5);  // ( >> 5 is the same as divide by 32, but takes one operation)
+    return (volatile uint32_t)(sysTickUptime >> 5);  // ( >> 5 is the same as divide by 32, but takes one operation)
 }
 
 void systemInit(void)
@@ -65,7 +65,7 @@ void systemInit(void)
     NVIC_SetPriority(SysTick_IRQn, 0);
 
     //TODO: Should these be abstracted with the board-specific (ie revo_f4.h) file?
-    RCC_AHB2PeriphClockCmd(RCC_AHB2Periph_OTG_FS, DISABLE);
+    RCC_AHB2PeriphClockCmd(RCC_AHB2Periph_OTG_FS, ENABLE);
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI3, ENABLE);

@@ -37,8 +37,9 @@ UART::UART()
 {}
 
 
-void UART::init(const uart_hardware_struct_t* conf, uint32_t baudrate)
+void UART::init(const uart_hardware_struct_t* conf, uint32_t baudrate, uart_mode_t mode)
 {
+  receive_CB_ = nullptr;
   c_ = conf;
 
   rx_pin_.init(c_->GPIO, c_->Rx_Pin, GPIO::PERIPH_IN_OUT);
@@ -51,21 +52,34 @@ void UART::init(const uart_hardware_struct_t* conf, uint32_t baudrate)
     UART1Ptr = this;
   }
 
-  init_UART(baudrate);
+  init_UART(baudrate, mode);
   init_DMA();
   init_NVIC();
-
-  receive_CB_ = nullptr;
 }
 
-void UART::init_UART(uint32_t baudrate)
+void UART::init_UART(uint32_t baudrate, uart_mode_t mode)
 {
   // Configure the device
+  USART_Cmd(c_->dev, DISABLE);
+
   USART_InitTypeDef USART_InitStruct;
   USART_InitStruct.USART_BaudRate = baudrate;
-  USART_InitStruct.USART_WordLength = USART_WordLength_8b;
-  USART_InitStruct.USART_StopBits = USART_StopBits_1;
-  USART_InitStruct.USART_Parity = USART_Parity_No;
+
+  switch (mode)
+  {
+  case MODE_8N1:
+  default:
+    USART_InitStruct.USART_WordLength = USART_WordLength_8b;
+    USART_InitStruct.USART_Parity = USART_Parity_No;
+    USART_InitStruct.USART_StopBits = USART_StopBits_1;
+    break;
+  case MODE_8E2:
+    USART_InitStruct.USART_WordLength = USART_WordLength_8b;
+    USART_InitStruct.USART_Parity = USART_Parity_Even;
+    USART_InitStruct.USART_StopBits = USART_StopBits_2;
+    break;
+  }
+
   USART_InitStruct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
   USART_InitStruct.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
   USART_Init(c_->dev, &USART_InitStruct);
@@ -92,7 +106,7 @@ void UART::init_DMA()
 
   DMA_InitStructure.DMA_Priority = DMA_Priority_High;
   DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
-  DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)(&(c_->dev->DR));
+  DMA_InitStructure.DMA_PeripheralBaseAddr = reinterpret_cast<uint32_t>(&(c_->dev->DR));
   DMA_InitStructure.DMA_Channel = c_->DMA_Channel;
 
   // Configure the Tx DMA
@@ -100,7 +114,7 @@ void UART::init_DMA()
   DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
   DMA_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral;
   DMA_InitStructure.DMA_BufferSize = TX_BUFFER_SIZE;
-  DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t) tx_buffer_;
+  DMA_InitStructure.DMA_Memory0BaseAddr = reinterpret_cast<uint32_t>(tx_buffer_);
   DMA_Init(c_->Tx_DMA_Stream, &DMA_InitStructure);
 
   // Configure the Rx DMA
@@ -108,7 +122,7 @@ void UART::init_DMA()
   DMA_InitStructure.DMA_Mode = DMA_Mode_Circular;
   DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory;
   DMA_InitStructure.DMA_BufferSize = RX_BUFFER_SIZE;
-  DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t) rx_buffer_;
+  DMA_InitStructure.DMA_Memory0BaseAddr = reinterpret_cast<uint32_t>(rx_buffer_);
   DMA_Init(c_->Rx_DMA_Stream, &DMA_InitStructure);
 
   // Turn on the Rx DMA Stream
@@ -139,7 +153,7 @@ void UART::init_NVIC()
   // Configure the Interrupt
   NVIC_InitTypeDef NVIC_InitStruct;
   NVIC_InitStruct.NVIC_IRQChannel = c_->USART_IRQn;
-  NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 2;
+  NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 1;
   NVIC_InitStruct.NVIC_IRQChannelSubPriority = 1;
   NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStruct);
@@ -152,7 +166,7 @@ void UART::init_NVIC()
 }
 
 
-void UART::write(uint8_t* ch, uint8_t len)
+void UART::write(const uint8_t *ch, uint8_t len)
 {
   // Put Data on the tx_buffer
   for (int i = 0; i < len ; i++)
@@ -170,7 +184,7 @@ void UART::write(uint8_t* ch, uint8_t len)
 void UART::startDMA()
 {
   // Set the start of the transmission to the oldest data
-  c_->Tx_DMA_Stream->M0AR = (uint32_t)&tx_buffer_[tx_buffer_tail_];
+  c_->Tx_DMA_Stream->M0AR = reinterpret_cast<uint32_t>(&tx_buffer_[tx_buffer_tail_]);
   if(tx_buffer_head_ > tx_buffer_tail_)
   {
     // Set the length of the transmission to the data on the buffer
@@ -253,9 +267,10 @@ uint32_t UART::tx_bytes_free()
   }
 }
 
-bool UART::set_baud_rate(uint32_t baud)
+bool UART::set_mode(uint32_t baud, uart_mode_t mode)
 {
-  init_UART(baud);
+  init_UART(baud, mode);
+  return true;
 }
 
 bool UART::tx_buffer_empty()
@@ -276,7 +291,7 @@ bool UART::flush()
 void UART::DMA_Rx_IRQ_callback()
 {
   // DMA took care of putting the data on the buffer
-  // Just call the callback until we have not more data
+  // Just call the callback until we have no more data
   // Update the head position from the DMA
   rx_buffer_head_ =  DMA_GetCurrDataCounter(c_->Rx_DMA_Stream);
   if(receive_CB_ != nullptr)
@@ -286,7 +301,7 @@ void UART::DMA_Rx_IRQ_callback()
       // read a new byte and decrement the tail
       uint8_t byte = rx_buffer_[RX_BUFFER_SIZE - rx_buffer_tail_];
       receive_CB_(byte);
-      if(rx_buffer_tail_-- == 0)
+      if(--rx_buffer_tail_ == 0)
       {
         // wrap to the top if at the bottom
         rx_buffer_tail_ = RX_BUFFER_SIZE;
