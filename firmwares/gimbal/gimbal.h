@@ -5,6 +5,7 @@
 #include "pwm.h"
 #include "led.h"
 #include "vcp.h"
+#include "math.h"
 
 #include "revo_f4.h"
 

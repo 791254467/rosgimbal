@@ -56,6 +56,25 @@ void Gimbal::rx_callback(uint8_t byte)
         float roll, pitch, yaw;
         unpack_in_payload(in_payload_buf, &roll, &pitch, &yaw);
         handle_in_msg(roll, pitch, yaw);
+
+        if (roll_command > 500 && roll_command < 2500 || pitch_command > 500 && pitch_command < 2500
+                || yaw_command > 500 && yaw_command < 2500)
+        {
+            //            servo_out[0].writeUs(roll_command);
+            servo_out[1].writeUs(pitch_command);
+            servo_out[2].writeUs(yaw_command);
+        }
+        else
+        {
+            //            servo_out[0].write(norm_roll);
+//                calc_servo_rate();
+            servo_out[1].write(norm_pitch);
+            servo_out[2].write(norm_yaw);
+            tx_callback(command_in_rate, servo_command_rate,
+                        roll_command, pitch_command, yaw_command);
+            vcp.write(out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
+            vcp.flush();
+        }
     }
 }
 
@@ -69,6 +88,7 @@ void Gimbal::handle_in_msg(float roll, float pitch, float yaw)
     roll_command = roll;
     pitch_command = pitch;
     yaw_command = yaw;
+    norm_commands();
 }
 
 //==================================================================
@@ -237,6 +257,7 @@ void Gimbal::norm_commands()
         norm_yaw = yaw_upper_limit;
     else if (norm_yaw < yaw_lower_limit)
         norm_yaw = yaw_lower_limit;
+    calc_servo_rate();
 
 }
 
@@ -249,6 +270,12 @@ void Gimbal::calc_servo_rate()
 {
     servo_command_rate = 1000.0 / float(millis() - time_of_last_servo);
     time_of_last_servo = millis();
+    if(isinf(servo_command_rate))
+        servo_command_rate = -1;
+    else if (isnan(servo_command_rate))
+        servo_command_rate = -2;
+    else
+        servo_command_rate;
 }
 
 } // End gimbal namespace
@@ -283,25 +310,25 @@ int main() {
         {
             uint8_t byte = vcp.read_byte();
             gimbal_obj.rx_callback(byte);
-            gimbal_obj.norm_commands();
-            if (gimbal_obj.roll_command > 500 && gimbal_obj.roll_command < 2500 || gimbal_obj.pitch_command > 500 && gimbal_obj.pitch_command < 2500
-                    || gimbal_obj.yaw_command > 500 && gimbal_obj.yaw_command < 2500)
-            {
-                //            servo_out[0].writeUs(roll_command);
-                servo_out[1].writeUs(gimbal_obj.pitch_command);
-                servo_out[2].writeUs(gimbal_obj.yaw_command);
-            }
-            else
-            {
-                //            servo_out[0].write(norm_roll);
-                gimbal_obj.calc_servo_rate();
-                servo_out[1].write(gimbal_obj.norm_pitch);
-                servo_out[2].write(gimbal_obj.norm_yaw);
-                gimbal_obj.tx_callback(gimbal_obj.command_in_rate, gimbal_obj.servo_command_rate,
-                            gimbal_obj.roll_command, gimbal_obj.pitch_command, gimbal_obj.yaw_command);
-                vcp.write(gimbal_obj.out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
-                vcp.flush();
-            }
+//            gimbal_obj.norm_commands();
+//            if (gimbal_obj.roll_command > 500 && gimbal_obj.roll_command < 2500 || gimbal_obj.pitch_command > 500 && gimbal_obj.pitch_command < 2500
+//                    || gimbal_obj.yaw_command > 500 && gimbal_obj.yaw_command < 2500)
+//            {
+//                //            servo_out[0].writeUs(roll_command);
+//                servo_out[1].writeUs(gimbal_obj.pitch_command);
+//                servo_out[2].writeUs(gimbal_obj.yaw_command);
+//            }
+//            else
+//            {
+//                //            servo_out[0].write(norm_roll);
+////                gimbal_obj.calc_servo_rate();
+//                servo_out[1].write(gimbal_obj.norm_pitch);
+//                servo_out[2].write(gimbal_obj.norm_yaw);
+//                gimbal_obj.tx_callback(gimbal_obj.command_in_rate, gimbal_obj.servo_command_rate,
+//                            gimbal_obj.roll_command, gimbal_obj.pitch_command, gimbal_obj.yaw_command);
+//                vcp.write(gimbal_obj.out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
+//                vcp.flush();
+//            }
         }
 
     }
