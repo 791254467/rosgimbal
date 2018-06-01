@@ -67,7 +67,7 @@ void Gimbal::rx_callback(uint8_t byte)
         else
         {
             //            servo_out[0].write(norm_roll);
-//                calc_servo_rate();
+            calc_servo_rate();
             servo_out[1].write(norm_pitch);
             servo_out[2].write(norm_yaw);
             tx_callback(command_in_rate, servo_command_rate,
@@ -257,7 +257,7 @@ void Gimbal::norm_commands()
         norm_yaw = yaw_upper_limit;
     else if (norm_yaw < yaw_lower_limit)
         norm_yaw = yaw_lower_limit;
-    calc_servo_rate();
+//    calc_servo_rate();
 
 }
 
@@ -286,29 +286,29 @@ int main() {
 
     gimbal::Gimbal gimbal_obj;
 
-    VCP vcp;
+//    VCP vcp;
     VCP* uartPtr = nullptr;
 
-    vcp.init();
-    uartPtr = &vcp;
-    vcp.register_rx_callback(std::bind(&gimbal::Gimbal::rx_callback, &gimbal_obj, std::placeholders::_1));
+    gimbal_obj.vcp.init();
+    uartPtr = &gimbal_obj.vcp;
+    gimbal_obj.vcp.register_rx_callback(std::bind(&gimbal::Gimbal::rx_callback, &gimbal_obj, std::placeholders::_1));
 
-    PWM_OUT servo_out[3];
+//    PWM_OUT servo_out[3];
     int servo_frequency = 50;
     for (int i = 0; i < 3; ++i)
     {
 //        servo_out[i].init(&pwm_config[i], servo_frequency, 2470, 530); // This works for a BL815H servo.
-        servo_out[i].init(&pwm_config[i], servo_frequency, 2400, 600); // This works for a 9g servo.
+        gimbal_obj.servo_out[i].init(&pwm_config[i], servo_frequency, 2400, 600); // This works for a 9g servo.
     }
-    servo_out[0].write(gimbal::Gimbal::roll_offset/gimbal::Gimbal::RAD_RANGE);
-    servo_out[1].write(-gimbal::Gimbal::pitch_offset/gimbal::Gimbal::RAD_RANGE);
-    servo_out[2].write(gimbal::Gimbal::yaw_offset/gimbal::Gimbal::RAD_RANGE);
+    gimbal_obj.servo_out[0].write(gimbal::Gimbal::roll_offset/gimbal::Gimbal::RAD_RANGE);
+    gimbal_obj.servo_out[1].write(-gimbal::Gimbal::pitch_offset/gimbal::Gimbal::RAD_RANGE);
+    gimbal_obj.servo_out[2].write(gimbal::Gimbal::yaw_offset/gimbal::Gimbal::RAD_RANGE);
 
     while(1)
     {
-        while(vcp.rx_bytes_waiting())
+        while(gimbal_obj.vcp.rx_bytes_waiting())
         {
-            uint8_t byte = vcp.read_byte();
+            uint8_t byte = gimbal_obj.vcp.read_byte();
             gimbal_obj.rx_callback(byte);
 //            gimbal_obj.norm_commands();
 //            if (gimbal_obj.roll_command > 500 && gimbal_obj.roll_command < 2500 || gimbal_obj.pitch_command > 500 && gimbal_obj.pitch_command < 2500

@@ -63,6 +63,10 @@ public:
 
     uint8_t out_buf[OUT_BUFFER_SIZE];
 
+    PWM_OUT servo_out[3];
+
+    VCP vcp;
+
 private:
 
     // Functions
