@@ -131,7 +131,7 @@ CSOURCES =  $(CMSIS_SRC) \
 CXXSOURCES = $(PRINTF_SRC) \
 			 gpio.cpp \
              led.cpp \
-             main.cpp \
+             gimbal.cpp \
              vcp.cpp \
              pwm.cpp
 

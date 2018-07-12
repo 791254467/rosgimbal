@@ -29,128 +29,72 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "system.h"
-#include "pwm.h"
-#include "led.h"
-#include "vcp.h"
+#include "gimbal.h"
 
-#include "revo_f4.h"
+namespace gimbal {
 
-// serial communication
-#define OUT_BUFFER_SIZE 22
-#define OUT_START_BYTE 0xA5
-#define OUT_PAYLOAD_LENGTH 20
-#define OUT_MESSAGE_LENGTH 22
+//==================================================================
+// Constructor
+//==================================================================
+Gimbal::Gimbal()
+{
+    parse_state = PARSE_STATE_IDLE;
+    command_in_rate = 0.0;
+    servo_command_rate = 0.0;
+    info.init(LED2_GPIO, LED2_PIN);
 
-#define IN_BUFFER_SIZE 14
-#define IN_START_BYTE 0xA5
-#define IN_PAYLOAD_LENGTH 12
-#define IN_MESSAGE_LENGTH 14
+}
 
-#define CRC_LENGTH 1
-#define CRC_INITIAL_VALUE 0x00
-
-
-
-VCP* uartPtr = NULL;
-
-enum ParseState {
-    PARSE_STATE_IDLE,
-    PARSE_STATE_GOT_START_BYTE,
-    PARSE_STATE_GOT_PAYLOAD
-};
-
-volatile float roll_command;
-volatile float pitch_command;
-volatile float yaw_command;
-volatile float norm_roll;
-volatile float norm_pitch;
-volatile float norm_yaw;
-
-// This value is the total range in radians the servo can travel.
-static float RAD_RANGE = 3.14159;
-
-// Offset values for aligning gimbal servos with desired coordinate frame.
-// Radians. Must be positive.
-static float roll_offset = 0;
-static float pitch_offset = -0.45;
-static float yaw_offset = 0;
-
-// Limit the servo travel for mechanical restrictions.
-// These are normalized values for the write function. Between 0 and 1.
-static float roll_lower_limit = 0;
-static float pitch_lower_limit = 0;
-static float yaw_lower_limit = 0;
-
-static float roll_upper_limit = 1.0;
-static float pitch_upper_limit = 2.15/RAD_RANGE;
-static float yaw_upper_limit = 1.0;
-
-volatile long time_of_last_command;
-volatile long time_of_last_blink;
-volatile long time_of_last_servo;
-
-volatile uint32_t crc_error_count;
-volatile uint32_t start_byte_error;
-volatile uint32_t payload_index_error;
-volatile float command_in_rate;
-volatile float servo_command_rate;
-
-
-// serial
-uint8_t out_buf[OUT_BUFFER_SIZE];
-uint8_t in_buf[IN_BUFFER_SIZE];
-
-ParseState parse_state;
-uint8_t in_payload_buf[IN_PAYLOAD_LENGTH];
-int in_payload_index;
-uint8_t in_crc_value;
-uint8_t out_crc_value;
-
-LED info;
-
-
-void handle_in_msg(float roll, float pitch, float yaw);
-void unpack_in_payload(uint8_t buf[IN_PAYLOAD_LENGTH], float *roll, float *pitch, float *yaw);
-bool parse_in_byte(uint8_t c);
-
-uint8_t in_crc8_ccitt_update (uint8_t inCrc, uint8_t inData);
-uint8_t out_crc8_ccitt_update (uint8_t outCrc, uint8_t outData);
-
-void blink_led();
-void norm_commands();
-void tx_callback();
-void calc_command_rate();
 
 //==================================================================
 // handle received serial data
 //==================================================================
-void rx_callback(uint8_t byte)
+void Gimbal::rx_callback(uint8_t byte)
 {
     if (parse_in_byte(byte))
     {
         float roll, pitch, yaw;
         unpack_in_payload(in_payload_buf, &roll, &pitch, &yaw);
         handle_in_msg(roll, pitch, yaw);
+
+        if (roll_command > 500 && roll_command < 2500 || pitch_command > 500 && pitch_command < 2500
+                || yaw_command > 500 && yaw_command < 2500)
+        {
+            //            servo_out[0].writeUs(roll_command);
+            servo_out[1].writeUs(pitch_command);
+            servo_out[2].writeUs(yaw_command);
+        }
+        else
+        {
+            //            servo_out[0].write(norm_roll);
+            calc_servo_rate();
+            servo_out[1].write(norm_pitch);
+            servo_out[2].write(norm_yaw);
+            tx_callback(command_in_rate, servo_command_rate,
+                        roll_command, pitch_command, yaw_command);
+            vcp.write(out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
+            vcp.flush();
+        }
     }
 }
 
 //==================================================================
 // handle received message
 //==================================================================
-void handle_in_msg(float roll, float pitch, float yaw)
+void Gimbal::handle_in_msg(float roll, float pitch, float yaw)
 {
     calc_command_rate();
     time_of_last_command = millis();
     roll_command = roll;
     pitch_command = pitch;
     yaw_command = yaw;
+    norm_commands();
 }
 
 //==================================================================
 // unpack incoming message payload
 //==================================================================
-void unpack_in_payload(uint8_t buf[], float *roll, float *pitch, float *yaw)
+void Gimbal::unpack_in_payload(uint8_t buf[], float *roll, float *pitch, float *yaw)
 {
     memcpy(roll, buf,     4);
     memcpy(pitch, buf + 4, 4);
@@ -160,7 +104,7 @@ void unpack_in_payload(uint8_t buf[], float *roll, float *pitch, float *yaw)
 //==================================================================
 // handle an incoming byte
 //==================================================================
-bool parse_in_byte(uint8_t c)
+bool Gimbal::parse_in_byte(uint8_t c)
 {
     bool got_message = false;
     switch (parse_state)
@@ -210,7 +154,7 @@ bool parse_in_byte(uint8_t c)
 //==================================================================
 // handle in crc
 //==================================================================
-uint8_t in_crc8_ccitt_update (uint8_t inCrc, uint8_t inData)
+uint8_t Gimbal::in_crc8_ccitt_update (uint8_t inCrc, uint8_t inData)
 {
     uint8_t   i;
     uint8_t   data;
@@ -235,7 +179,7 @@ uint8_t in_crc8_ccitt_update (uint8_t inCrc, uint8_t inData)
 //==================================================================
 // handle out crc
 //==================================================================
-uint8_t out_crc8_ccitt_update (uint8_t outCrc, uint8_t outData)
+uint8_t Gimbal::out_crc8_ccitt_update (uint8_t outCrc, uint8_t outData)
 {
     uint8_t   i;
     uint8_t   data;
@@ -260,7 +204,7 @@ uint8_t out_crc8_ccitt_update (uint8_t outCrc, uint8_t outData)
 //==================================================================
 // Serialize the out message
 //==================================================================
-void tx_callback(float command_rate, float servo_rate, float roll, float pitch, float yaw)
+void Gimbal::tx_callback(float command_rate, float servo_rate, float roll, float pitch, float yaw)
 {
     out_buf[0] = OUT_START_BYTE;
     memcpy(out_buf+1, &command_rate, sizeof(float));
@@ -281,7 +225,7 @@ void tx_callback(float command_rate, float servo_rate, float roll, float pitch, 
 //==================================================================
 // Blink LED while receiving data for hardware debugging
 //==================================================================
-void blink_led()
+void Gimbal::blink_led()
 {
     if(millis() - time_of_last_blink >= 100)
     {
@@ -293,7 +237,7 @@ void blink_led()
 //==================================================================
 // Normalize angle commands for servo writing function
 //==================================================================
-void norm_commands()
+void Gimbal::norm_commands()
 {
     norm_roll = (roll_command+roll_offset)/RAD_RANGE;
     norm_pitch = -(pitch_command+pitch_offset)/RAD_RANGE;
@@ -313,67 +257,79 @@ void norm_commands()
         norm_yaw = yaw_upper_limit;
     else if (norm_yaw < yaw_lower_limit)
         norm_yaw = yaw_lower_limit;
+//    calc_servo_rate();
 
 }
 
-void calc_command_rate()
+void Gimbal::calc_command_rate()
 {
     command_in_rate = 1000.0/float(millis() - time_of_last_command);
 }
+
+void Gimbal::calc_servo_rate()
+{
+    servo_command_rate = 1000.0 / float(millis() - time_of_last_servo);
+    time_of_last_servo = millis();
+    if(isinf(servo_command_rate))
+        servo_command_rate = -1;
+    else if (isnan(servo_command_rate))
+        servo_command_rate = -2;
+    else
+        servo_command_rate;
+}
+
+} // End gimbal namespace
 
 
 int main() {
     systemInit();
 
-    VCP vcp;
-    vcp.init();
-    uartPtr = &vcp;
-    vcp.register_rx_callback(&rx_callback);
+    gimbal::Gimbal gimbal_obj;
 
-    parse_state = PARSE_STATE_IDLE;
+//    VCP vcp;
+    VCP* uartPtr = nullptr;
 
-    command_in_rate = 0.0;
-    servo_command_rate = 0.0;
+    gimbal_obj.vcp.init();
+    uartPtr = &gimbal_obj.vcp;
+    gimbal_obj.vcp.register_rx_callback(std::bind(&gimbal::Gimbal::rx_callback, &gimbal_obj, std::placeholders::_1));
 
-
-    info.init(LED2_GPIO, LED2_PIN);
-
-    PWM_OUT servo_out[3];
+//    PWM_OUT servo_out[3];
     int servo_frequency = 50;
     for (int i = 0; i < 3; ++i)
     {
 //        servo_out[i].init(&pwm_config[i], servo_frequency, 2470, 530); // This works for a BL815H servo.
-        servo_out[i].init(&pwm_config[i], servo_frequency, 2400, 600); // This works for a 9g servo.
+        gimbal_obj.servo_out[i].init(&pwm_config[i], servo_frequency, 2400, 600); // This works for a 9g servo.
     }
-    servo_out[0].write(roll_offset/RAD_RANGE);
-    servo_out[1].write(-pitch_offset/RAD_RANGE);
-    servo_out[2].write(yaw_offset/RAD_RANGE);
+    gimbal_obj.servo_out[0].write(gimbal::Gimbal::roll_offset/gimbal::Gimbal::RAD_RANGE);
+    gimbal_obj.servo_out[1].write(-gimbal::Gimbal::pitch_offset/gimbal::Gimbal::RAD_RANGE);
+    gimbal_obj.servo_out[2].write(gimbal::Gimbal::yaw_offset/gimbal::Gimbal::RAD_RANGE);
 
     while(1)
     {
-        while(vcp.rx_bytes_waiting())
+        while(gimbal_obj.vcp.rx_bytes_waiting())
         {
-            uint8_t byte = vcp.read_byte();
-            rx_callback(byte);
-            norm_commands();
-            if (roll_command > 500 && roll_command < 2500 || pitch_command > 500 && pitch_command < 2500 || yaw_command > 500 && yaw_command < 2500)
-            {
-                //            servo_out[0].writeUs(roll_command);
-                servo_out[1].writeUs(pitch_command);
-                servo_out[2].writeUs(yaw_command);
-            }
-            else
-            {
-                //            servo_out[0].write(norm_roll);
-                servo_command_rate = 1000.0 / float(millis() - time_of_last_servo);
-
-                servo_out[1].write(norm_pitch);
-                servo_out[2].write(norm_yaw);
-                tx_callback(command_in_rate, servo_command_rate, roll_command, pitch_command, yaw_command);
-                vcp.write(out_buf, OUT_MESSAGE_LENGTH);
-                vcp.flush();
-            }
+            uint8_t byte = gimbal_obj.vcp.read_byte();
+            gimbal_obj.rx_callback(byte);
+//            gimbal_obj.norm_commands();
+//            if (gimbal_obj.roll_command > 500 && gimbal_obj.roll_command < 2500 || gimbal_obj.pitch_command > 500 && gimbal_obj.pitch_command < 2500
+//                    || gimbal_obj.yaw_command > 500 && gimbal_obj.yaw_command < 2500)
+//            {
+//                //            servo_out[0].writeUs(roll_command);
+//                servo_out[1].writeUs(gimbal_obj.pitch_command);
+//                servo_out[2].writeUs(gimbal_obj.yaw_command);
+//            }
+//            else
+//            {
+//                //            servo_out[0].write(norm_roll);
+////                gimbal_obj.calc_servo_rate();
+//                servo_out[1].write(gimbal_obj.norm_pitch);
+//                servo_out[2].write(gimbal_obj.norm_yaw);
+//                gimbal_obj.tx_callback(gimbal_obj.command_in_rate, gimbal_obj.servo_command_rate,
+//                            gimbal_obj.roll_command, gimbal_obj.pitch_command, gimbal_obj.yaw_command);
+//                vcp.write(gimbal_obj.out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
+//                vcp.flush();
+//            }
         }
-        time_of_last_servo = millis();
+
     }
 }

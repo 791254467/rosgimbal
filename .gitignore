@@ -12,3 +12,6 @@
 *.creator.*
 *.autosave
 *.swp
+/firmwares/*/obj/
+/firmwares/*/processor/
+/firmwares/*/src/
