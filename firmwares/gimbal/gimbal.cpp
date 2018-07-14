@@ -57,24 +57,15 @@ void Gimbal::rx_callback(uint8_t byte)
         unpack_in_payload(in_payload_buf, &roll, &pitch, &yaw);
         handle_in_msg(roll, pitch, yaw);
 
-        if (roll_command > 500 && roll_command < 2500 || pitch_command > 500 && pitch_command < 2500
-                || yaw_command > 500 && yaw_command < 2500)
-        {
-            //            servo_out[0].writeUs(roll_command);
-            servo_out[1].writeUs(pitch_command);
-            servo_out[2].writeUs(yaw_command);
-        }
-        else
-        {
-            //            servo_out[0].write(norm_roll);
-            calc_servo_rate();
-            servo_out[1].write(norm_pitch);
-            servo_out[2].write(norm_yaw);
-            tx_callback(command_in_rate, servo_command_rate,
-                        roll_command, pitch_command, yaw_command);
-            vcp.write(out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
-            vcp.flush();
-        }
+        calc_servo_rate();
+        //            servo_out[0].writeUs(roll_pwm_command);
+        servo_out[1].writeUs(pitch_pwm_command);
+        servo_out[2].writeUs(yaw_pwm_command);
+
+        tx_callback(command_in_rate, servo_command_rate,
+                    roll_rad_command, pitch_rad_command, yaw_rad_command);
+        vcp.write(out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
+        vcp.flush();
     }
 }
 
@@ -85,10 +76,10 @@ void Gimbal::handle_in_msg(float roll, float pitch, float yaw)
 {
     calc_command_rate();
     time_of_last_command = millis();
-    roll_command = roll;
-    pitch_command = pitch;
-    yaw_command = yaw;
-    norm_commands();
+    roll_rad_command = roll;
+    pitch_rad_command = pitch;
+    yaw_rad_command = yaw;
+    rad_to_pwm();
 }
 
 //==================================================================
@@ -234,32 +225,32 @@ void Gimbal::blink_led()
     }
 }
 
-//==================================================================
-// Normalize angle commands for servo writing function
-//==================================================================
-void Gimbal::norm_commands()
+void Gimbal::rad_to_pwm()
 {
-    norm_roll = (roll_command+roll_offset)/RAD_RANGE;
-    norm_pitch = -(pitch_command+pitch_offset)/RAD_RANGE;
-    norm_yaw = (yaw_command+yaw_offset)/RAD_RANGE;
+    roll_pwm_center = (roll_pwm_max + roll_pwm_min)/2;
+    pitch_pwm_center = (pitch_pwm_max + pitch_pwm_min)/2;
+    yaw_pwm_center = (yaw_pwm_max + yaw_pwm_min)/2;
 
-    if (norm_roll > roll_upper_limit)
-        norm_roll = roll_upper_limit;
-    else if (norm_roll < roll_lower_limit)
-        norm_roll = roll_lower_limit;
+    roll_pwm_command = roll_pwm_center + roll_direction*(roll_rad_command - roll_rad_offset)/(roll_rad_range)*(roll_pwm_max - roll_pwm_min);
+    pitch_pwm_command = pitch_pwm_center + pitch_direction*(pitch_rad_command - pitch_rad_offset)/(pitch_rad_range)*(pitch_pwm_max - pitch_pwm_min);
+    yaw_pwm_command = yaw_pwm_center + yaw_direction*(yaw_rad_command - yaw_rad_offset)/(yaw_rad_range)*(yaw_pwm_max - yaw_pwm_min);
 
-    if (norm_pitch > pitch_upper_limit)
-        norm_pitch = pitch_upper_limit;
-    else if (norm_pitch < pitch_lower_limit)
-        norm_pitch = pitch_lower_limit;
+    if (roll_pwm_command > roll_pwm_max)
+        roll_pwm_command = roll_pwm_max;
+    else if (roll_pwm_command < roll_pwm_min)
+        roll_pwm_command = roll_pwm_min;
 
-    if (norm_yaw > yaw_upper_limit)
-        norm_yaw = yaw_upper_limit;
-    else if (norm_yaw < yaw_lower_limit)
-        norm_yaw = yaw_lower_limit;
-//    calc_servo_rate();
+    if (pitch_pwm_command > pitch_pwm_max)
+        pitch_pwm_command = pitch_pwm_max;
+    else if (pitch_pwm_command < pitch_pwm_min)
+        pitch_pwm_command = pitch_pwm_min;
 
+    if (yaw_pwm_command > yaw_pwm_max)
+        yaw_pwm_command = yaw_pwm_max;
+    else if (yaw_pwm_command < yaw_pwm_min)
+        yaw_pwm_command = yaw_pwm_min;
 }
+
 
 void Gimbal::calc_command_rate()
 {
@@ -286,23 +277,19 @@ int main() {
 
     gimbal::Gimbal gimbal_obj;
 
-//    VCP vcp;
     VCP* uartPtr = nullptr;
 
     gimbal_obj.vcp.init();
     uartPtr = &gimbal_obj.vcp;
     gimbal_obj.vcp.register_rx_callback(std::bind(&gimbal::Gimbal::rx_callback, &gimbal_obj, std::placeholders::_1));
 
-//    PWM_OUT servo_out[3];
-    int servo_frequency = 50;
-    for (int i = 0; i < 3; ++i)
-    {
-//        servo_out[i].init(&pwm_config[i], servo_frequency, 2470, 530); // This works for a BL815H servo.
-        gimbal_obj.servo_out[i].init(&pwm_config[i], servo_frequency, 2400, 600); // This works for a 9g servo.
-    }
-    gimbal_obj.servo_out[0].write(gimbal::Gimbal::roll_offset/gimbal::Gimbal::RAD_RANGE);
-    gimbal_obj.servo_out[1].write(-gimbal::Gimbal::pitch_offset/gimbal::Gimbal::RAD_RANGE);
-    gimbal_obj.servo_out[2].write(gimbal::Gimbal::yaw_offset/gimbal::Gimbal::RAD_RANGE);
+    gimbal_obj.servo_out[0].init(&pwm_config[0], gimbal_obj.servo_frequency, gimbal_obj.roll_pwm_max, gimbal_obj.roll_pwm_min);
+    gimbal_obj.servo_out[1].init(&pwm_config[1], gimbal_obj.servo_frequency, gimbal_obj.pitch_pwm_max, gimbal_obj.pitch_pwm_min);
+    gimbal_obj.servo_out[2].init(&pwm_config[2], gimbal_obj.servo_frequency, gimbal_obj.yaw_pwm_max, gimbal_obj.yaw_pwm_min);
+
+    gimbal_obj.servo_out[0].writeUs(gimbal_obj.roll_start_pwm);
+    gimbal_obj.servo_out[1].writeUs(gimbal_obj.pitch_start_pwm);
+    gimbal_obj.servo_out[2].writeUs(gimbal_obj.yaw_start_pwm);
 
     while(1)
     {
@@ -310,25 +297,6 @@ int main() {
         {
             uint8_t byte = gimbal_obj.vcp.read_byte();
             gimbal_obj.rx_callback(byte);
-//            gimbal_obj.norm_commands();
-//            if (gimbal_obj.roll_command > 500 && gimbal_obj.roll_command < 2500 || gimbal_obj.pitch_command > 500 && gimbal_obj.pitch_command < 2500
-//                    || gimbal_obj.yaw_command > 500 && gimbal_obj.yaw_command < 2500)
-//            {
-//                //            servo_out[0].writeUs(roll_command);
-//                servo_out[1].writeUs(gimbal_obj.pitch_command);
-//                servo_out[2].writeUs(gimbal_obj.yaw_command);
-//            }
-//            else
-//            {
-//                //            servo_out[0].write(norm_roll);
-////                gimbal_obj.calc_servo_rate();
-//                servo_out[1].write(gimbal_obj.norm_pitch);
-//                servo_out[2].write(gimbal_obj.norm_yaw);
-//                gimbal_obj.tx_callback(gimbal_obj.command_in_rate, gimbal_obj.servo_command_rate,
-//                            gimbal_obj.roll_command, gimbal_obj.pitch_command, gimbal_obj.yaw_command);
-//                vcp.write(gimbal_obj.out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
-//                vcp.flush();
-//            }
         }
 
     }
