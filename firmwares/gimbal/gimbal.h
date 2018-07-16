@@ -48,11 +48,11 @@ public:
 
     // Offset values for aligning gimbal servos with desired coordinate frame.
     volatile float  roll_rad_offset = 0;
-    volatile float pitch_rad_offset = 1.57;
+    volatile float pitch_rad_offset = 0;
     volatile float   yaw_rad_offset = 0;
 
     volatile int roll_direction = 1;
-    volatile int pitch_direction = -1;
+    volatile int pitch_direction = 1;
     volatile int yaw_direction = 1;
 
     volatile int roll_start_pwm = 1500;
@@ -90,8 +90,6 @@ public:
 
     volatile int servo_frequency = 50;
     static constexpr int num_servos = 3;
-//    volatile int pwm_max = 2000; // 2400 typically the max for something like a 9g servo
-//    volatile int pwm_min = 1000; // 600 typically min
 
     uint8_t out_buf[OUT_BUFFER_SIZE];
 
