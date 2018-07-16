@@ -56,6 +56,7 @@ void Gimbal::rx_callback(uint8_t byte)
         float roll, pitch, yaw;
         unpack_in_payload(in_payload_buf, &roll, &pitch, &yaw);
         handle_in_msg(roll, pitch, yaw);
+        set_params(roll, pitch, yaw);
 
         calc_servo_rate();
         //            servo_out[0].writeUs(roll_pwm_command);
@@ -67,6 +68,14 @@ void Gimbal::rx_callback(uint8_t byte)
         vcp.write(out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
         vcp.flush();
     }
+}
+
+//==================================================================
+// Set parameters if requested
+//==================================================================
+void Gimbal::set_params(float roll, float pitch, float yaw)
+{
+
 }
 
 //==================================================================

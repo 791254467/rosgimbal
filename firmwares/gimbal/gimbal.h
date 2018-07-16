@@ -46,7 +46,7 @@ public:
     volatile float pitch_rad_range = 3.14159;
     volatile float yaw_rad_range = 3.14159;
 
-    // Offset values for aligning gimbal servos with desired coordinate frame.
+    // Offset values for aligning gimbal servos with desired coordinate frame (IN RADIANS).
     volatile float  roll_rad_offset = 0;
     volatile float pitch_rad_offset = 0;
     volatile float   yaw_rad_offset = 0;
@@ -107,12 +107,41 @@ private:
     uint8_t out_crc8_ccitt_update (uint8_t outCrc, uint8_t outData);
     void blink_led();
     void calc_command_rate();
+    void set_params(float roll, float pitch, float yaw);
 
     // Variables
     enum ParseState {
         PARSE_STATE_IDLE,
         PARSE_STATE_GOT_START_BYTE,
         PARSE_STATE_GOT_PAYLOAD
+    };
+
+    enum ParamValue {
+        WRITE_PARAMS=5000,
+
+        SERVO_PITCH_FREQUENCY=5001,
+        SERVO_PITCH_UPPER_PWM=5002,
+        SERVO_PITCH_LOWER_PWM=5003,
+        SERVO_PITCH_DIRECTION=5004,
+        SERVO_PITCH_RAD_RANGE=5005,
+        SERVO_PITCH_RAD_OFFSET=5006,
+        SERVO_PITCH_START_PWM=5007,
+
+        SERVO_YAW_FREQUENCY=5011,
+        SERVO_YAW_UPPER_PWM=5012,
+        SERVO_YAW_LOWER_PWM=5013,
+        SERVO_YAW_DIRECTION=5014,
+        SERVO_YAW_RAD_RANGE=5015,
+        SERVO_YAW_RAD_OFFSET=5016,
+        SERVO_YAW_START_PWM=5017,
+
+        SERVO_RETRACT_FREQUENCY=5021,
+        SERVO_RETRACT_UPPER_PWM=5022,
+        SERVO_RETRACT_LOWER_PWM=5023,
+        SERVO_RETRACT_DIRECTION=5024,
+        SERVO_RETRACT_RAD_RANGE=5025,
+        SERVO_RETRACT_RAD_OFFSET=5026,
+        SERVO_RETRACT_START_PWM=5027
     };
 
     volatile long time_of_last_command;
