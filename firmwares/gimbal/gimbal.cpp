@@ -42,6 +42,7 @@ Gimbal::Gimbal()
     command_in_rate = 0.0;
     servo_command_rate = 0.0;
     info.init(LED2_GPIO, LED2_PIN);
+    param_value = PARAM_IDLE;
 
 }
 
@@ -71,11 +72,96 @@ void Gimbal::rx_callback(uint8_t byte)
 }
 
 //==================================================================
-// Set parameters if requested
+// Set parameters if requested. This is a super hacky way of getting params
+// in without using mavlink. It just listens to the existing roll and pitch
+// channels to set param values.
 //==================================================================
 void Gimbal::set_params(float roll, float pitch, float yaw)
 {
+    param_value = ParamValue(roll);
+    switch (param_value) {
 
+    case SERVO_PITCH_FREQUENCY:
+        if (pitch > 10 && pitch < 355)
+            servo_pitch_frequency = pitch;
+        break;
+    case SERVO_PITCH_UPPER_PWM:
+        pitch_pwm_max = pitch;
+        break;
+    case SERVO_PITCH_LOWER_PWM:
+        pitch_pwm_min = pitch;
+        break;
+    case SERVO_PITCH_DIRECTION:
+        if(pitch > 0)
+            pitch_direction = 1;
+        else if (pitch < 0)
+            pitch_direction = -1;
+        break;
+    case SERVO_PITCH_RAD_RANGE:
+        pitch_rad_range = pitch;
+        break;
+    case SERVO_PITCH_RAD_OFFSET:
+        pitch_rad_offset = pitch;
+        break;
+    case SERVO_PITCH_START_PWM:
+        pitch_start_pwm = pitch;
+        break;
+
+    case SERVO_YAW_FREQUENCY:
+        if (pitch > 10 && pitch < 355)
+            servo_yaw_frequency = pitch;
+        break;
+    case SERVO_YAW_UPPER_PWM:
+        yaw_pwm_max = pitch;
+        break;
+    case SERVO_YAW_LOWER_PWM:
+        yaw_pwm_min = pitch;
+        break;
+    case SERVO_YAW_DIRECTION:
+        if(pitch > 0)
+            yaw_direction = 1;
+        else if (pitch < 0)
+            yaw_direction = -1;
+        break;
+    case SERVO_YAW_RAD_RANGE:
+        yaw_rad_range = pitch;
+        break;
+    case SERVO_YAW_RAD_OFFSET:
+        yaw_rad_offset = pitch;
+        break;
+    case SERVO_YAW_START_PWM:
+        yaw_start_pwm = pitch;
+        break;
+
+    case SERVO_RETRACT_FREQUENCY:
+        if (pitch > 10 && pitch < 355)
+            servo_retract_frequency = pitch;
+        break;
+    case SERVO_RETRACT_UPPER_PWM:
+        retract_pwm_max = pitch;
+        break;
+    case SERVO_RETRACT_LOWER_PWM:
+        retract_pwm_min = pitch;
+        break;
+    case SERVO_RETRACT_DIRECTION:
+        if(pitch > 0)
+            retract_direction = 1;
+        else if (pitch < 0)
+            retract_direction = -1;
+        break;
+    case SERVO_RETRACT_RAD_RANGE:
+        retract_rad_range = pitch;
+        break;
+    case SERVO_RETRACT_RAD_OFFSET:
+        retract_rad_offset = pitch;
+        break;
+    case SERVO_RETRACT_START_PWM:
+        retract_start_pwm = pitch;
+        break;
+
+    default:
+        break;
+    }
 }
 
 //==================================================================
@@ -83,12 +169,15 @@ void Gimbal::set_params(float roll, float pitch, float yaw)
 //==================================================================
 void Gimbal::handle_in_msg(float roll, float pitch, float yaw)
 {
-    calc_command_rate();
-    time_of_last_command = millis();
-    roll_rad_command = roll;
-    pitch_rad_command = pitch;
-    yaw_rad_command = yaw;
-    rad_to_pwm();
+    if (roll < 4999)
+    {
+        calc_command_rate();
+        time_of_last_command = millis();
+        roll_rad_command = roll;
+        pitch_rad_command = pitch;
+        yaw_rad_command = yaw;
+        rad_to_pwm();
+    }
 }
 
 //==================================================================
@@ -292,9 +381,9 @@ int main() {
     uartPtr = &gimbal_obj.vcp;
     gimbal_obj.vcp.register_rx_callback(std::bind(&gimbal::Gimbal::rx_callback, &gimbal_obj, std::placeholders::_1));
 
-    gimbal_obj.servo_out[0].init(&pwm_config[0], gimbal_obj.servo_frequency, gimbal_obj.roll_pwm_max, gimbal_obj.roll_pwm_min);
-    gimbal_obj.servo_out[1].init(&pwm_config[1], gimbal_obj.servo_frequency, gimbal_obj.pitch_pwm_max, gimbal_obj.pitch_pwm_min);
-    gimbal_obj.servo_out[2].init(&pwm_config[2], gimbal_obj.servo_frequency, gimbal_obj.yaw_pwm_max, gimbal_obj.yaw_pwm_min);
+    gimbal_obj.servo_out[0].init(&pwm_config[0], gimbal_obj.servo_roll_frequency, gimbal_obj.roll_pwm_max, gimbal_obj.roll_pwm_min);
+    gimbal_obj.servo_out[1].init(&pwm_config[1], gimbal_obj.servo_pitch_frequency, gimbal_obj.pitch_pwm_max, gimbal_obj.pitch_pwm_min);
+    gimbal_obj.servo_out[2].init(&pwm_config[2], gimbal_obj.servo_yaw_frequency, gimbal_obj.yaw_pwm_max, gimbal_obj.yaw_pwm_min);
 
     gimbal_obj.servo_out[0].writeUs(gimbal_obj.roll_start_pwm);
     gimbal_obj.servo_out[1].writeUs(gimbal_obj.pitch_start_pwm);

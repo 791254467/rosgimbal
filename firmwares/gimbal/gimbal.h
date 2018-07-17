@@ -45,28 +45,34 @@ public:
     volatile float roll_rad_range = 3.14159;
     volatile float pitch_rad_range = 3.14159;
     volatile float yaw_rad_range = 3.14159;
+    volatile float retract_rad_range = 3.14159;
 
     // Offset values for aligning gimbal servos with desired coordinate frame (IN RADIANS).
     volatile float  roll_rad_offset = 0;
     volatile float pitch_rad_offset = 0;
     volatile float   yaw_rad_offset = 0;
+    volatile float retract_rad_offset = 0;
 
     volatile int roll_direction = 1;
     volatile int pitch_direction = 1;
     volatile int yaw_direction = 1;
+    volatile int retract_direction = 1;
 
     volatile int roll_start_pwm = 1500;
     volatile int pitch_start_pwm = 1500;
     volatile int yaw_start_pwm = 1500;
+    volatile int retract_start_pwm = 1500;
 
     // Limit the servo travel for mechanical restrictions.
     volatile int  roll_pwm_min = 600;
     volatile int pitch_pwm_min = 600;
     volatile int   yaw_pwm_min = 600;
+    volatile int retract_pwm_min = 600;
 
     volatile int  roll_pwm_max = 2400;
     volatile int pitch_pwm_max = 2400;
     volatile int   yaw_pwm_max = 2400;
+    volatile int retract_pwm_max = 2400;
 
     volatile int  roll_pwm_center = 1500;
     volatile int pitch_pwm_center = 1500;
@@ -88,7 +94,10 @@ public:
     volatile float servo_command_rate;
     volatile long time_of_last_servo;
 
-    volatile int servo_frequency = 50;
+    volatile int servo_roll_frequency = 50;
+    volatile int servo_pitch_frequency = 50;
+    volatile int servo_yaw_frequency = 50;
+    volatile int servo_retract_frequency = 50;
     static constexpr int num_servos = 3;
 
     uint8_t out_buf[OUT_BUFFER_SIZE];
@@ -118,6 +127,7 @@ private:
 
     enum ParamValue {
         WRITE_PARAMS=5000,
+        PARAM_IDLE = 6000,
 
         SERVO_PITCH_FREQUENCY=5001,
         SERVO_PITCH_UPPER_PWM=5002,
@@ -158,6 +168,7 @@ private:
     volatile uint8_t in_buf[IN_BUFFER_SIZE];
 
     ParseState parse_state;
+    ParamValue param_value;
     uint8_t in_payload_buf[IN_PAYLOAD_LENGTH];
     volatile int in_payload_index;
     volatile uint8_t in_crc_value;
