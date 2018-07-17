@@ -82,9 +82,9 @@ public:
     volatile float pitch_rad_command;
     volatile float yaw_rad_command;
 
-    volatile float roll_pwm_command;
-    volatile float pitch_pwm_command;
-    volatile float yaw_pwm_command;
+    volatile float roll_pwm_command = roll_start_pwm;
+    volatile float pitch_pwm_command = pitch_start_pwm;
+    volatile float yaw_pwm_command = yaw_start_pwm;
 
     volatile float norm_roll;
     volatile float norm_pitch;

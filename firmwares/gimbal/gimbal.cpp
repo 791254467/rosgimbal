@@ -169,13 +169,13 @@ void Gimbal::set_params(float roll, float pitch, float yaw)
 //==================================================================
 void Gimbal::handle_in_msg(float roll, float pitch, float yaw)
 {
+    calc_command_rate();
+    time_of_last_command = millis();
+    roll_rad_command = roll;
+    pitch_rad_command = pitch;
+    yaw_rad_command = yaw;
     if (roll < 4999)
     {
-        calc_command_rate();
-        time_of_last_command = millis();
-        roll_rad_command = roll;
-        pitch_rad_command = pitch;
-        yaw_rad_command = yaw;
         rad_to_pwm();
     }
 }
