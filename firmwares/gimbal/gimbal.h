@@ -8,6 +8,8 @@
 #include "math.h"
 
 #include "revo_f4.h"
+#include "spi.h"
+#include "M25P16.h"
 
 
 namespace gimbal
@@ -23,6 +25,7 @@ public:
     void tx_callback(float command_rate, float servo_rate, float roll, float pitch, float yaw);
     void calc_servo_rate();
     void rad_to_pwm();
+    void get_params();
 
 
     // Variables
@@ -125,8 +128,47 @@ private:
         PARSE_STATE_GOT_PAYLOAD
     };
 
+    struct EepromData{
+        int servo_roll_frequency;
+        int roll_pwm_max;
+        int roll_pwm_min;
+        int roll_direction;
+        float roll_rad_range;
+        float roll_rad_offset;
+        float roll_start_pwm;
+
+        int servo_pitch_frequency;
+        int pitch_pwm_max;
+        int pitch_pwm_min;
+        int pitch_direction;
+        float pitch_rad_range;
+        float pitch_rad_offset;
+        float pitch_start_pwm;
+
+        int servo_yaw_frequency;
+        int yaw_pwm_max;
+        int yaw_pwm_min;
+        int yaw_direction;
+        float yaw_rad_range;
+        float yaw_rad_offset;
+        float yaw_start_pwm;
+
+        int servo_retract_frequency;
+        int retract_pwm_max;
+        int retract_pwm_min;
+        int retract_direction;
+        float retract_rad_range;
+        float retract_rad_offset;
+        float retract_start_pwm;
+
+        uint8_t begin_data_DB = 0xDB;
+        uint8_t end_data_FF = 0xFF;
+        uint8_t crc;
+    };
+
     enum ParamValue {
         WRITE_PARAMS=5000,
+        READ_PARAMS=7000,
         PARAM_IDLE = 6000,
 
         SERVO_PITCH_FREQUENCY=5001,
@@ -162,13 +204,17 @@ private:
     volatile uint32_t start_byte_error;
     volatile uint32_t payload_index_error;
 
-
+    // Flash
+    SPI spi;
+    M25P16 flash;
 
     // serial
     volatile uint8_t in_buf[IN_BUFFER_SIZE];
 
     ParseState parse_state;
     ParamValue param_value;
+    EepromData eeprom_data;
+    uint8_t eeprom_buffer[sizeof(EepromData)];
     uint8_t in_payload_buf[IN_PAYLOAD_LENGTH];
     volatile int in_payload_index;
     volatile uint8_t in_crc_value;

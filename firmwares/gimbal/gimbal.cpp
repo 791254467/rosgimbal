@@ -43,7 +43,8 @@ Gimbal::Gimbal()
     servo_command_rate = 0.0;
     info.init(LED2_GPIO, LED2_PIN);
     param_value = PARAM_IDLE;
-
+    spi.init(&spi_config[FLASH_SPI]);
+    flash.init(&spi);
 }
 
 
@@ -72,6 +73,16 @@ void Gimbal::rx_callback(uint8_t byte)
 }
 
 //==================================================================
+// Get the parameters from the eeprom if they are there.
+//==================================================================
+void Gimbal::get_params()
+{
+    flash.read_config(eeprom_buffer, sizeof(EepromData));
+    eeprom_data = eeprom_data;
+}
+
+
+//==================================================================
 // Set parameters if requested. This is a super hacky way of getting params
 // in without using mavlink. It just listens to the existing roll and pitch
 // channels to set param values.
@@ -83,86 +94,136 @@ void Gimbal::set_params(float roll, float pitch, float yaw)
 
     case SERVO_PITCH_FREQUENCY:
         if (pitch > 10 && pitch < 355)
+        {
             servo_pitch_frequency = pitch;
+            eeprom_data.servo_pitch_frequency = servo_pitch_frequency;
+        }
         break;
     case SERVO_PITCH_UPPER_PWM:
         pitch_pwm_max = pitch;
+        eeprom_data.pitch_pwm_max = pitch_pwm_max;
         break;
     case SERVO_PITCH_LOWER_PWM:
         pitch_pwm_min = pitch;
+        eeprom_data.pitch_pwm_min = pitch_pwm_min;
         break;
     case SERVO_PITCH_DIRECTION:
         if(pitch > 0)
+        {
             pitch_direction = 1;
+            eeprom_data.pitch_direction = pitch_direction;
+        }
         else if (pitch < 0)
+        {
             pitch_direction = -1;
+            eeprom_data.pitch_direction = pitch_direction;
+        }
         break;
     case SERVO_PITCH_RAD_RANGE:
         pitch_rad_range = pitch;
+        eeprom_data.pitch_rad_range = pitch_rad_range;
         break;
     case SERVO_PITCH_RAD_OFFSET:
         pitch_rad_offset = pitch;
+        eeprom_data.pitch_rad_offset = pitch_rad_offset;
         break;
     case SERVO_PITCH_START_PWM:
         pitch_start_pwm = pitch;
+        eeprom_data.pitch_start_pwm = pitch_start_pwm;
         break;
 
     case SERVO_YAW_FREQUENCY:
         if (pitch > 10 && pitch < 355)
+        {
             servo_yaw_frequency = pitch;
+            eeprom_data.servo_yaw_frequency = servo_yaw_frequency;
+        }
         break;
     case SERVO_YAW_UPPER_PWM:
         yaw_pwm_max = pitch;
+        eeprom_data.yaw_pwm_max = yaw_pwm_max;
         break;
     case SERVO_YAW_LOWER_PWM:
         yaw_pwm_min = pitch;
+        eeprom_data.yaw_pwm_min = yaw_pwm_min;
         break;
     case SERVO_YAW_DIRECTION:
         if(pitch > 0)
+        {
             yaw_direction = 1;
+            eeprom_data.yaw_direction = yaw_direction;
+        }
         else if (pitch < 0)
+        {
             yaw_direction = -1;
+            eeprom_data.yaw_direction = yaw_direction;
+        }
         break;
     case SERVO_YAW_RAD_RANGE:
         yaw_rad_range = pitch;
+        eeprom_data.yaw_rad_range = yaw_rad_range;
         break;
     case SERVO_YAW_RAD_OFFSET:
         yaw_rad_offset = pitch;
+        eeprom_data.yaw_rad_offset = yaw_rad_offset;
         break;
     case SERVO_YAW_START_PWM:
         yaw_start_pwm = pitch;
+        eeprom_data.yaw_start_pwm = yaw_start_pwm;
         break;
 
     case SERVO_RETRACT_FREQUENCY:
         if (pitch > 10 && pitch < 355)
+        {
             servo_retract_frequency = pitch;
+            eeprom_data.servo_retract_frequency = servo_retract_frequency;
+        }
         break;
     case SERVO_RETRACT_UPPER_PWM:
         retract_pwm_max = pitch;
+        eeprom_data.retract_pwm_max = retract_pwm_max;
         break;
     case SERVO_RETRACT_LOWER_PWM:
         retract_pwm_min = pitch;
+        eeprom_data.retract_pwm_min = retract_pwm_min;
         break;
     case SERVO_RETRACT_DIRECTION:
         if(pitch > 0)
+        {
             retract_direction = 1;
+            eeprom_data.retract_direction = retract_direction;
+        }
         else if (pitch < 0)
+        {
             retract_direction = -1;
+            eeprom_data.retract_direction = retract_direction;
+        }
         break;
     case SERVO_RETRACT_RAD_RANGE:
         retract_rad_range = pitch;
+        eeprom_data.retract_rad_range = retract_rad_range;
         break;
     case SERVO_RETRACT_RAD_OFFSET:
         retract_rad_offset = pitch;
+        eeprom_data.retract_rad_offset = retract_rad_offset;
         break;
     case SERVO_RETRACT_START_PWM:
         retract_start_pwm = pitch;
+        eeprom_data.retract_start_pwm = retract_start_pwm;
         break;
 
+    case WRITE_PARAMS:
+        flash.write_config((uint8_t*)&eeprom_data, sizeof(EepromData));
+        break;
+    case READ_PARAMS:
+        get_params();
+        break;
     default:
         break;
     }
 }
+
+
 
 //==================================================================
 // handle received message
