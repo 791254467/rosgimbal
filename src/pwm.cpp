@@ -33,7 +33,7 @@
 
 PWM_OUT::PWM_OUT(){}
 
-void PWM_OUT::init(const pwm_hardware_struct_t* pwm_init, uint16_t frequency, uint32_t max_us, uint32_t min_us)
+void PWM_OUT::init(const pwm_hardware_struct_t* pwm_init, uint16_t frequency, uint32_t max_us, uint32_t min_us, uint32_t start_us)
 {
   GPIO_InitTypeDef gpio_init_struct;
   TIM_TimeBaseInitTypeDef tim_init_struct;
@@ -112,6 +112,8 @@ void PWM_OUT::init(const pwm_hardware_struct_t* pwm_init, uint16_t frequency, ui
     CCR_ = &TIMPtr->CCR4;
     break;
   }
+
+  writeUs(start_us);
 
   TIM_ARRPreloadConfig(TIMPtr, ENABLE);
   TIM_Cmd(TIMPtr, ENABLE);

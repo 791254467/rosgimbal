@@ -38,7 +38,7 @@ class PWM_OUT {
 public:
   PWM_OUT();
 
-  void init(const pwm_hardware_struct_t* pwm_init, uint16_t frequency, uint32_t max_us, uint32_t min_us);
+  void init(const pwm_hardware_struct_t* pwm_init, uint16_t frequency, uint32_t max_us, uint32_t min_us, uint32_t start_us);
   void enable();
   void disable();
   void write(float value);

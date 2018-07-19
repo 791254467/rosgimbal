@@ -26,6 +26,8 @@ public:
     void calc_servo_rate();
     void rad_to_pwm();
     void get_params();
+    void retract_gimbal();
+    void extend_gimbal();
 
 
     // Variables
@@ -77,6 +79,9 @@ public:
     volatile int   yaw_pwm_max = 2400;
     volatile int retract_pwm_max = 2400;
 
+    volatile int retract_up_pwm = 2000;
+    volatile int retract_down_pwm = 1000;
+
     volatile int  roll_pwm_center = 1500;
     volatile int pitch_pwm_center = 1500;
     volatile int   yaw_pwm_center = 1500;
@@ -101,7 +106,15 @@ public:
     volatile int servo_pitch_frequency = 50;
     volatile int servo_yaw_frequency = 50;
     volatile int servo_retract_frequency = 50;
-    static constexpr int num_servos = 3;
+    static constexpr int num_servos = 4;
+
+    bool has_retract = true;
+    bool is_retracted = true;
+    bool first_retract = true;
+    bool first_extend = true;
+    volatile long retract_time;
+    volatile long extend_time;
+
 
     uint8_t out_buf[OUT_BUFFER_SIZE];
 

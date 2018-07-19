@@ -60,10 +60,31 @@ void Gimbal::rx_callback(uint8_t byte)
         handle_in_msg(roll, pitch, yaw);
         set_params(roll, pitch, yaw);
 
-        calc_servo_rate();
-        //            servo_out[0].writeUs(roll_pwm_command);
-        servo_out[1].writeUs(pitch_pwm_command);
-        servo_out[2].writeUs(yaw_pwm_command);
+        if (roll == 4000)
+        {
+            if (first_retract)
+                retract_time = millis();
+            retract_gimbal();
+            is_retracted = true;
+            first_retract = false;
+            first_extend = true;
+        }
+        else if (is_retracted && roll != 4000)
+        {
+            if (first_extend)
+                extend_time = millis();
+            extend_gimbal();
+
+            first_retract = true;
+            first_extend = false;
+        }
+        else if (!is_retracted)
+        {
+            calc_servo_rate();
+            //            servo_out[0].writeUs(roll_pwm_command);
+            servo_out[1].writeUs(pitch_pwm_command);
+            servo_out[2].writeUs(yaw_pwm_command);
+        }
 
         tx_callback(command_in_rate, servo_command_rate,
                     roll_rad_command, pitch_rad_command, yaw_rad_command);
@@ -428,6 +449,25 @@ void Gimbal::calc_servo_rate()
         servo_command_rate;
 }
 
+void Gimbal::retract_gimbal()
+{
+    servo_out[1].writeUs(pitch_start_pwm);
+    servo_out[2].writeUs(yaw_start_pwm);
+    if (millis() - retract_time > 1000)
+        servo_out[3].writeUs(retract_up_pwm);
+}
+
+void Gimbal::extend_gimbal()
+{
+    servo_out[1].writeUs(pitch_start_pwm);
+    servo_out[2].writeUs(yaw_start_pwm);
+    servo_out[3].writeUs(retract_down_pwm);
+    if (millis() - extend_time > 1000)
+    {
+        is_retracted = false;
+    }
+}
+
 } // End gimbal namespace
 
 
@@ -442,13 +482,25 @@ int main() {
     uartPtr = &gimbal_obj.vcp;
     gimbal_obj.vcp.register_rx_callback(std::bind(&gimbal::Gimbal::rx_callback, &gimbal_obj, std::placeholders::_1));
 
-    gimbal_obj.servo_out[0].init(&pwm_config[0], gimbal_obj.servo_roll_frequency, gimbal_obj.roll_pwm_max, gimbal_obj.roll_pwm_min);
-    gimbal_obj.servo_out[1].init(&pwm_config[1], gimbal_obj.servo_pitch_frequency, gimbal_obj.pitch_pwm_max, gimbal_obj.pitch_pwm_min);
-    gimbal_obj.servo_out[2].init(&pwm_config[2], gimbal_obj.servo_yaw_frequency, gimbal_obj.yaw_pwm_max, gimbal_obj.yaw_pwm_min);
+    gimbal_obj.servo_out[0].init(&pwm_config[0], gimbal_obj.servo_roll_frequency, gimbal_obj.roll_pwm_max, gimbal_obj.roll_pwm_min, gimbal_obj.roll_start_pwm);
+    gimbal_obj.servo_out[1].init(&pwm_config[1], gimbal_obj.servo_pitch_frequency, gimbal_obj.pitch_pwm_max, gimbal_obj.pitch_pwm_min, gimbal_obj.pitch_start_pwm);
+    gimbal_obj.servo_out[2].init(&pwm_config[2], gimbal_obj.servo_yaw_frequency, gimbal_obj.yaw_pwm_max, gimbal_obj.yaw_pwm_min, gimbal_obj.yaw_start_pwm);
 
-    gimbal_obj.servo_out[0].writeUs(gimbal_obj.roll_start_pwm);
-    gimbal_obj.servo_out[1].writeUs(gimbal_obj.pitch_start_pwm);
-    gimbal_obj.servo_out[2].writeUs(gimbal_obj.yaw_start_pwm);
+    if (gimbal_obj.has_retract)
+    {
+        gimbal_obj.servo_out[0].writeUs(gimbal_obj.roll_start_pwm);
+        gimbal_obj.servo_out[1].writeUs(gimbal_obj.pitch_start_pwm);
+        gimbal_obj.servo_out[2].writeUs(gimbal_obj.yaw_start_pwm);
+        delay(1000);
+        gimbal_obj.servo_out[3].init(&pwm_config[3], gimbal_obj.servo_retract_frequency, gimbal_obj.retract_pwm_max, gimbal_obj.retract_pwm_min, gimbal_obj.retract_up_pwm);
+        gimbal_obj.retract_gimbal();
+    }
+    else
+    {
+        gimbal_obj.servo_out[0].writeUs(gimbal_obj.roll_start_pwm);
+        gimbal_obj.servo_out[1].writeUs(gimbal_obj.pitch_start_pwm);
+        gimbal_obj.servo_out[2].writeUs(gimbal_obj.yaw_start_pwm);
+    }
 
     while(1)
     {
