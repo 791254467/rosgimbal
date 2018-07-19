@@ -45,6 +45,7 @@ Gimbal::Gimbal()
     param_value = PARAM_IDLE;
     spi.init(&spi_config[FLASH_SPI]);
     flash.init(&spi);
+//    time_of_last_message = millis();
 }
 
 
@@ -504,8 +505,20 @@ int main() {
 
     while(1)
     {
+        if ((millis() - gimbal_obj.time_of_last_message) > 10000)
+        {
+            if (gimbal_obj.first_retract)
+                gimbal_obj.retract_time = millis();
+            if (gimbal_obj.first_extend)
+                gimbal_obj.extend_time = millis();
+            gimbal_obj.retract_gimbal();
+            gimbal_obj.is_retracted = true;
+            gimbal_obj.first_retract = false;
+            gimbal_obj.first_extend = true;
+        }
         while(gimbal_obj.vcp.rx_bytes_waiting())
         {
+            gimbal_obj.time_of_last_message = millis();
             uint8_t byte = gimbal_obj.vcp.read_byte();
             gimbal_obj.rx_callback(byte);
         }
