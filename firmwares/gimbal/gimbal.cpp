@@ -61,7 +61,7 @@ void Gimbal::rx_callback(uint8_t byte)
         handle_in_msg(roll, pitch, yaw);
         set_params(roll, pitch, yaw);
 
-        if (roll == 4000)
+        if (roll == 4000 && has_retract)
         {
             if (first_retract)
                 retract_time = millis();
@@ -70,7 +70,7 @@ void Gimbal::rx_callback(uint8_t byte)
             first_retract = false;
             first_extend = true;
         }
-        else if (is_retracted && roll != 4000)
+        else if (is_retracted && roll != 4000 && has_retract)
         {
             if (first_extend)
                 extend_time = millis();
@@ -79,7 +79,7 @@ void Gimbal::rx_callback(uint8_t byte)
             first_retract = true;
             first_extend = false;
         }
-        else if (!is_retracted)
+        else if (!is_retracted || !has_retract)
         {
             calc_servo_rate();
             //            servo_out[0].writeUs(roll_pwm_command);
