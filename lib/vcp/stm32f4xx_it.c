@@ -1,10 +1,31 @@
+/**
+  ******************************************************************************
+  * @file    stm32f4xx_it.c
+  * @author  MCD Application Team
+  * @version V1.0.0
+  * @date    19-September-2011
+  * @brief   This file contains the headers of the interrupt handlers.
+  ******************************************************************************
+  * @attention
+  *
+  * THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS AT PROVIDING CUSTOMERS
+  * WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN ORDER FOR THEM TO SAVE
+  * TIME. AS A RESULT, STMICROELECTRONICS SHALL NOT BE HELD LIABLE FOR ANY
+  * DIRECT, INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY CLAIMS ARISING
+  * FROM THE CONTENT OF SUCH FIRMWARE AND/OR THE USE MADE BY CUSTOMERS OF THE
+  * CODING INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR PRODUCTS.
+  *
+  * <h2><center>&copy; COPYRIGHT 2011 STMicroelectronics</center></h2>
+  ******************************************************************************
+  */
+
 #include "stm32f4xx_it.h"
 #include "stm32f4xx_conf.h"
 
-#include "usbd_cdc_vcp.h"
 #include "usb_core.h"
 #include "usbd_core.h"
 #include "usbd_cdc_core.h"
+#include "usbd_cdc_vcp.h"
 
 extern uint32_t USBD_OTG_ISR_Handler (USB_OTG_CORE_HANDLE *pdev);
 
@@ -23,7 +44,7 @@ extern uint32_t USBD_OTG_EP1OUT_ISR_Handler (USB_OTG_CORE_HANDLE *pdev);
 #ifdef USE_USB_OTG_FS
 void OTG_FS_WKUP_IRQHandler(void)
 {
-  if(USB_OTG_dev.cfg.low_power)
+  if (USB_OTG_dev.cfg.low_power)
   {
     *(uint32_t *)(0xE000ED10) &= 0xFFFFFFF9 ;
     SystemInit();
@@ -41,7 +62,7 @@ void OTG_FS_WKUP_IRQHandler(void)
 #ifdef USE_USB_OTG_HS
 void OTG_HS_WKUP_IRQHandler(void)
 {
-  if(USB_OTG_dev.cfg.low_power)
+  if (USB_OTG_dev.cfg.low_power)
   {
     *(uint32_t *)(0xE000ED10) &= 0xFFFFFFF9 ;
     SystemInit();
@@ -62,14 +83,7 @@ void OTG_HS_IRQHandler(void)
 void OTG_FS_IRQHandler(void)
 #endif
 {
-  USB_OTG_GINTSTS_TypeDef  gintr_status;
-  gintr_status.d32 = USB_OTG_ReadCoreItr(&USB_OTG_dev);
   USBD_OTG_ISR_Handler (&USB_OTG_dev);
-
-  if ((gintr_status.b.rxstsqlvl) || (gintr_status.b.outepintr))
-  {
-    CDC_RxCallback();
-  }
 }
 
 #ifdef USB_OTG_HS_DEDICATED_EP1_ENABLED

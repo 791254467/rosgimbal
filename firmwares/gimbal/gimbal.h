@@ -123,6 +123,8 @@ public:
 
     VCP vcp;
 
+    void blink_heartbeat();
+
 private:
 
     // Functions
@@ -212,6 +214,7 @@ private:
 
     volatile long time_of_last_command;
     volatile long time_of_last_blink;
+    volatile long time_of_last_heartbeat;
 
 
     volatile uint32_t crc_error_count;
@@ -235,6 +238,7 @@ private:
     volatile uint8_t out_crc_value;
 
     LED info;
+    LED heartbeat;
 
 protected:
 
