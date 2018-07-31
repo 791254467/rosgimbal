@@ -48,39 +48,39 @@ public:
 
     // This value is the total range in radians the servo can travel. Not necessarily pi.
     volatile float roll_rad_range = 3.14159;
-    volatile float pitch_rad_range = 1.84;
-    volatile float yaw_rad_range = 2.98;
-    volatile float retract_rad_range = 1.60;
+    volatile float pitch_rad_range = 3.14159;
+    volatile float yaw_rad_range = 3.14159;
+    volatile float retract_rad_range = 3.14159;
 
     // Offset values for aligning gimbal servos with desired coordinate frame (IN RADIANS).
     volatile float  roll_rad_offset = 0;
-    volatile float pitch_rad_offset = -.52;
-    volatile float   yaw_rad_offset = 1.48;
+    volatile float pitch_rad_offset = 0;
+    volatile float   yaw_rad_offset = 0;
     volatile float retract_rad_offset = 0;
 
     volatile int roll_direction = 1;
-    volatile int pitch_direction = -1;
+    volatile int pitch_direction = 1;
     volatile int yaw_direction = 1;
     volatile int retract_direction = 1;
 
     volatile int roll_start_pwm = 1500;
-    volatile int pitch_start_pwm = 795;
-    volatile int yaw_start_pwm = 560;
+    volatile int pitch_start_pwm = 1500;
+    volatile int yaw_start_pwm = 1500;
     volatile int retract_start_pwm = 1500;
 
     // Limit the servo travel for mechanical restrictions.
-    volatile int  roll_pwm_min = 600;
-    volatile int pitch_pwm_min = 546;
-    volatile int   yaw_pwm_min = 523;
-    volatile int retract_pwm_min = 950;
+    volatile int  roll_pwm_min = 1000;
+    volatile int pitch_pwm_min = 1000;
+    volatile int   yaw_pwm_min = 1000;
+    volatile int retract_pwm_min = 1000;
 
-    volatile int  roll_pwm_max = 2400;
-    volatile int pitch_pwm_max = 1723;
-    volatile int   yaw_pwm_max = 2415;
-    volatile int retract_pwm_max = 2125;
+    volatile int  roll_pwm_max = 2000;
+    volatile int pitch_pwm_max = 2000;
+    volatile int   yaw_pwm_max = 2000;
+    volatile int retract_pwm_max = 2000;
 
-    volatile int retract_up_pwm = 1980;
-    volatile int retract_down_pwm = 1060;
+    volatile int retract_up_pwm = 2000;
+    volatile int retract_down_pwm = 1000;
 
     volatile int  roll_pwm_center = 1500;
     volatile int pitch_pwm_center = 1500;
