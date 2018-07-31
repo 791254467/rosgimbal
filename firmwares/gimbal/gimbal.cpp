@@ -42,9 +42,11 @@ Gimbal::Gimbal()
     command_in_rate = 0.0;
     servo_command_rate = 0.0;
     info.init(LED2_GPIO, LED2_PIN);
+    heartbeat.init(LED1_GPIO, LED1_PIN);
     param_value = PARAM_IDLE;
     spi.init(&spi_config[FLASH_SPI]);
     flash.init(&spi);
+    //    time_of_last_message = millis();
 }
 
 
@@ -60,15 +62,36 @@ void Gimbal::rx_callback(uint8_t byte)
         handle_in_msg(roll, pitch, yaw);
         set_params(roll, pitch, yaw);
 
-        calc_servo_rate();
-        //            servo_out[0].writeUs(roll_pwm_command);
-        servo_out[1].writeUs(pitch_pwm_command);
-        servo_out[2].writeUs(yaw_pwm_command);
+        if (roll == 4000 && has_retract)
+        {
+            if (first_retract)
+                retract_time = millis();
+            retract_gimbal();
+            is_retracted = true;
+            first_retract = false;
+            first_extend = true;
+        }
+        else if (is_retracted && roll != 4000 && has_retract)
+        {
+            if (first_extend)
+                extend_time = millis();
+            extend_gimbal();
 
-        tx_callback(command_in_rate, servo_command_rate,
-                    roll_rad_command, pitch_rad_command, yaw_rad_command);
-        vcp.write(out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
-        vcp.flush();
+            first_retract = true;
+            first_extend = false;
+        }
+        else if (!is_retracted || !has_retract)
+        {
+            calc_servo_rate();
+            //            servo_out[0].writeUs(roll_pwm_command);
+            servo_out[1].writeUs(pitch_pwm_command);
+            servo_out[2].writeUs(yaw_pwm_command);
+        }
+
+//        tx_callback(command_in_rate, servo_command_rate,
+//                    roll_rad_command, pitch_rad_command, yaw_rad_command);
+//        vcp.write(out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
+//        vcp.flush();
     }
 }
 
@@ -384,6 +407,15 @@ void Gimbal::blink_led()
     }
 }
 
+void Gimbal::blink_heartbeat()
+{
+    if(millis() - time_of_last_heartbeat >= 1000)
+    {
+        time_of_last_heartbeat = millis();
+        heartbeat.toggle();
+    }
+}
+
 void Gimbal::rad_to_pwm()
 {
     roll_pwm_center = (roll_pwm_max + roll_pwm_min)/2;
@@ -428,7 +460,90 @@ void Gimbal::calc_servo_rate()
         servo_command_rate;
 }
 
+void Gimbal::retract_gimbal()
+{
+    servo_out[1].writeUs(pitch_start_pwm);
+    servo_out[2].writeUs(yaw_start_pwm);
+    if (millis() - retract_time > 1000)
+        servo_out[3].writeUs(retract_up_pwm);
+}
+
+void Gimbal::extend_gimbal()
+{
+    servo_out[1].writeUs(pitch_start_pwm);
+    servo_out[2].writeUs(yaw_start_pwm);
+    servo_out[3].writeUs(retract_down_pwm);
+    if (millis() - extend_time > 1000)
+    {
+        is_retracted = false;
+    }
+}
+
 } // End gimbal namespace
+
+
+extern "C" {
+/* The prototype shows it is a naked function - in effect this is just an
+assembly function. */
+void HardFault_Handler( void ) __attribute__( ( naked ) );
+
+/* The fault handler implementation calls a function called
+prvGetRegistersFromStack(). */
+void HardFault_Handler(void)
+{
+    __asm volatile
+            (
+                " tst lr, #4                                                \n"
+                " ite eq                                                    \n"
+                " mrseq r0, msp                                             \n"
+                " mrsne r0, psp                                             \n"
+                " ldr r1, [r0, #24]                                         \n"
+                " ldr r2, handler2_address_const                            \n"
+                " bx r2                                                     \n"
+                " handler2_address_const: .word prvGetRegistersFromStack    \n"
+                );
+}
+
+void prvGetRegistersFromStack( uint32_t *pulFaultStackAddress )
+{
+    /* These are volatile to try and prevent the compiler/linker optimising them
+  away as the variables never actually get used.  If the debugger won't show the
+  values of the variables, make them global my moving their declaration outside
+  of this function. */
+    volatile uint32_t r0;
+    volatile uint32_t r1;
+    volatile uint32_t r2;
+    volatile uint32_t r3;
+    volatile uint32_t r12;
+    volatile uint32_t lr; /* Link register. */
+    volatile uint32_t pc; /* Program counter. */
+    volatile uint32_t psr;/* Program status register. */
+
+    r0 = pulFaultStackAddress[ 0 ];
+    r1 = pulFaultStackAddress[ 1 ];
+    r2 = pulFaultStackAddress[ 2 ];
+    r3 = pulFaultStackAddress[ 3 ];
+
+    r12 = pulFaultStackAddress[ 4 ];
+    lr = pulFaultStackAddress[ 5 ];
+    pc = pulFaultStackAddress[ 6 ];
+    psr = pulFaultStackAddress[ 7 ];
+
+    // avoid compiler warnings about unused variables
+    (void) r0;
+    (void) r1;
+    (void) r2;
+    (void) r3;
+    (void) r12;
+    (void) lr;
+    (void) pc;
+    (void) psr;
+
+    /* When the following line is hit, the variables contain the register values. */
+    for( ;; );
+
+}
+}
 
 
 int main() {
@@ -442,21 +557,46 @@ int main() {
     uartPtr = &gimbal_obj.vcp;
     gimbal_obj.vcp.register_rx_callback(std::bind(&gimbal::Gimbal::rx_callback, &gimbal_obj, std::placeholders::_1));
 
-    gimbal_obj.servo_out[0].init(&pwm_config[0], gimbal_obj.servo_roll_frequency, gimbal_obj.roll_pwm_max, gimbal_obj.roll_pwm_min);
-    gimbal_obj.servo_out[1].init(&pwm_config[1], gimbal_obj.servo_pitch_frequency, gimbal_obj.pitch_pwm_max, gimbal_obj.pitch_pwm_min);
-    gimbal_obj.servo_out[2].init(&pwm_config[2], gimbal_obj.servo_yaw_frequency, gimbal_obj.yaw_pwm_max, gimbal_obj.yaw_pwm_min);
+    gimbal_obj.servo_out[0].init(&pwm_config[0], gimbal_obj.servo_roll_frequency, gimbal_obj.roll_pwm_max, gimbal_obj.roll_pwm_min, gimbal_obj.roll_start_pwm);
+    gimbal_obj.servo_out[1].init(&pwm_config[1], gimbal_obj.servo_pitch_frequency, gimbal_obj.pitch_pwm_max, gimbal_obj.pitch_pwm_min, gimbal_obj.pitch_start_pwm);
+    gimbal_obj.servo_out[2].init(&pwm_config[2], gimbal_obj.servo_yaw_frequency, gimbal_obj.yaw_pwm_max, gimbal_obj.yaw_pwm_min, gimbal_obj.yaw_start_pwm);
+    gimbal_obj.servo_out[3].init(&pwm_config[3], gimbal_obj.servo_retract_frequency, gimbal_obj.retract_pwm_max, gimbal_obj.retract_pwm_min, gimbal_obj.retract_start_pwm);
 
-    gimbal_obj.servo_out[0].writeUs(gimbal_obj.roll_start_pwm);
-    gimbal_obj.servo_out[1].writeUs(gimbal_obj.pitch_start_pwm);
-    gimbal_obj.servo_out[2].writeUs(gimbal_obj.yaw_start_pwm);
+    if (gimbal_obj.has_retract)
+    {
+        gimbal_obj.servo_out[0].writeUs(gimbal_obj.roll_start_pwm);
+        gimbal_obj.servo_out[1].writeUs(gimbal_obj.pitch_start_pwm);
+        gimbal_obj.servo_out[2].writeUs(gimbal_obj.yaw_start_pwm);
+        delay(1000);
+        gimbal_obj.servo_out[3].init(&pwm_config[3], gimbal_obj.servo_retract_frequency, gimbal_obj.retract_pwm_max, gimbal_obj.retract_pwm_min, gimbal_obj.retract_up_pwm);
+        gimbal_obj.retract_gimbal();
+    }
+    else
+    {
+        gimbal_obj.servo_out[0].writeUs(gimbal_obj.roll_start_pwm);
+        gimbal_obj.servo_out[1].writeUs(gimbal_obj.pitch_start_pwm);
+        gimbal_obj.servo_out[2].writeUs(gimbal_obj.yaw_start_pwm);
+    }
 
     while(1)
     {
+        if ((millis() - gimbal_obj.time_of_last_message) > 10000)
+        {
+            if (gimbal_obj.first_retract)
+                gimbal_obj.retract_time = millis();
+            if (gimbal_obj.first_extend)
+                gimbal_obj.extend_time = millis();
+            gimbal_obj.retract_gimbal();
+            gimbal_obj.is_retracted = true;
+            gimbal_obj.first_retract = false;
+            gimbal_obj.first_extend = true;
+        }
         while(gimbal_obj.vcp.rx_bytes_waiting())
         {
+            gimbal_obj.time_of_last_message = millis();
             uint8_t byte = gimbal_obj.vcp.read_byte();
             gimbal_obj.rx_callback(byte);
         }
-
+        gimbal_obj.blink_heartbeat();
     }
 }
