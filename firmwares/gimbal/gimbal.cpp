@@ -88,10 +88,10 @@ void Gimbal::rx_callback(uint8_t byte)
             servo_out[2].writeUs(yaw_pwm_command);
         }
 
-//        tx_callback(command_in_rate, servo_command_rate,
-//                    roll_rad_command, pitch_rad_command, yaw_rad_command);
-//        vcp.write(out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
-//        vcp.flush();
+        tx_callback(command_in_rate, servo_command_rate,
+                    roll_rad_command, pitch_pwm_command, yaw_pwm_command);
+        vcp.write(out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
+        vcp.flush();
     }
 }
 

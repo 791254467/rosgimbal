@@ -103,8 +103,8 @@ public:
     volatile long time_of_last_servo;
 
     volatile int servo_roll_frequency = 50;
-    volatile int servo_pitch_frequency = 50;
-    volatile int servo_yaw_frequency = 50;
+    volatile int servo_pitch_frequency = 330;
+    volatile int servo_yaw_frequency = 330;
     volatile int servo_retract_frequency = 50;
     static constexpr int num_servos = 4;
 
