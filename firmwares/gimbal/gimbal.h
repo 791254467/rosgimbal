@@ -136,6 +136,12 @@ private:
     void blink_led();
     void calc_command_rate();
     void set_params(float roll, float pitch, float yaw);
+    void smooth_command(float pwm_command, int servo_freq, int servo_num);
+    void calc_smooth_rate(int servo_freq);
+
+    volatile int num_smooth_steps = 0;
+    volatile float diff_command = 0;
+    volatile float pwm_step = 0;
 
     // Variables
     enum ParseState {

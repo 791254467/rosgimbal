@@ -39,7 +39,7 @@ namespace gimbal {
 Gimbal::Gimbal()
 {
     parse_state = PARSE_STATE_IDLE;
-    command_in_rate = 0.0;
+    command_in_rate = 20.0;
     servo_command_rate = 0.0;
     info.init(LED2_GPIO, LED2_PIN);
     heartbeat.init(LED1_GPIO, LED1_PIN);
@@ -83,9 +83,12 @@ void Gimbal::rx_callback(uint8_t byte)
         else if (!is_retracted || !has_retract)
         {
             calc_servo_rate();
+
+            smooth_command(pitch_pwm_command, servo_pitch_frequency, 1);
+            smooth_command(yaw_pwm_command, servo_yaw_frequency, 2);
             //            servo_out[0].writeUs(roll_pwm_command);
-            servo_out[1].writeUs(pitch_pwm_command);
-            servo_out[2].writeUs(yaw_pwm_command);
+//            servo_out[1].writeUs(pitch_pwm_command);
+//            servo_out[2].writeUs(yaw_pwm_command);
         }
 
         tx_callback(command_in_rate, servo_command_rate,
@@ -94,6 +97,34 @@ void Gimbal::rx_callback(uint8_t byte)
         vcp.flush();
     }
 }
+
+//==================================================================
+// Smooth out the servo movements by adding more steps.
+//==================================================================
+void Gimbal::smooth_command(float pwm_command, int servo_freq, int servo_num)
+{
+    static float pwm_command_old[3] = {0, 0, 0};
+    calc_smooth_rate(servo_freq);
+    diff_command = pwm_command - pwm_command_old[servo_num];
+    for (int i = 1; i< num_smooth_steps; i++)
+    {
+        pwm_step = i/num_smooth_steps*diff_command + pwm_command_old[servo_num];
+        servo_out[servo_num].writeUs(pwm_step);
+    }
+    servo_out[servo_num].writeUs(pwm_command);
+    pwm_command_old[servo_num] = pwm_command;
+
+}
+
+//==================================================================
+// Calculate the number of steps to take between input commands.
+//==================================================================
+void Gimbal::calc_smooth_rate(int servo_freq)
+{
+    if (command_in_rate > 0)
+        num_smooth_steps = int(servo_freq/command_in_rate);
+}
+
 
 //==================================================================
 // Get the parameters from the eeprom if they are there.
