@@ -28,6 +28,7 @@ public:
     void get_params();
     void retract_gimbal();
     void extend_gimbal();
+    void update_command();
 
 
     // Variables
@@ -126,6 +127,8 @@ public:
     void blink_heartbeat();
 
 private:
+    float roll, pitch, yaw;
+    uint32_t roll_current_pwm, pitch_current_pwm, yaw_current_pwm;
 
     // Functions
     void handle_in_msg(float roll, float pitch, float yaw);
