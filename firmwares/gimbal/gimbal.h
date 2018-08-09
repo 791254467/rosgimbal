@@ -25,10 +25,11 @@ public:
     void tx_callback(float command_rate, float servo_rate, float roll, float pitch, float yaw);
     void calc_servo_rate();
     void rad_to_pwm();
+    void pwm_to_rad();
     void get_params();
     void retract_gimbal();
     void extend_gimbal();
-
+    void update_command();
 
     // Variables
 
@@ -126,6 +127,10 @@ public:
     void blink_heartbeat();
 
 private:
+
+    float roll, pitch, yaw;
+    uint32_t roll_current_pwm, pitch_current_pwm, yaw_current_pwm;
+    float pitch_current_rad, yaw_current_rad;
 
     // Functions
     void handle_in_msg(float roll, float pitch, float yaw);
