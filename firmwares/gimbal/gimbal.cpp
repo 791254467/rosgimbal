@@ -614,7 +614,7 @@ int main() {
 
     while(1)
     {
-        if ((millis() - gimbal_obj.time_of_last_message) > 10000)
+        if ((millis() - gimbal_obj.time_of_last_message) > 100000)
         {
             if (gimbal_obj.first_retract)
                 gimbal_obj.retract_time = millis();
