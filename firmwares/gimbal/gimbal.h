@@ -25,9 +25,11 @@ public:
     void tx_callback(float command_rate, float servo_rate, float roll, float pitch, float yaw);
     void calc_servo_rate();
     void rad_to_pwm();
+    void pwm_to_rad();
     void get_params();
     void retract_gimbal();
     void extend_gimbal();
+    void update_command();
 
 
     // Variables
@@ -103,8 +105,8 @@ public:
     volatile long time_of_last_servo;
 
     volatile int servo_roll_frequency = 50;
-    volatile int servo_pitch_frequency = 50;
-    volatile int servo_yaw_frequency = 50;
+    volatile int servo_pitch_frequency = 330;
+    volatile int servo_yaw_frequency = 330;
     volatile int servo_retract_frequency = 50;
     static constexpr int num_servos = 4;
 
@@ -126,6 +128,9 @@ public:
     void blink_heartbeat();
 
 private:
+    float roll, pitch, yaw;
+    uint32_t roll_current_pwm, pitch_current_pwm, yaw_current_pwm;
+    float pitch_current_rad, yaw_current_rad;
 
     // Functions
     void handle_in_msg(float roll, float pitch, float yaw);
@@ -136,6 +141,12 @@ private:
     void blink_led();
     void calc_command_rate();
     void set_params(float roll, float pitch, float yaw);
+    void smooth_command(float pwm_command, int servo_freq, int servo_num);
+    void calc_smooth_rate(int servo_freq);
+
+    volatile int num_smooth_steps = 0;
+    volatile float diff_command = 0;
+    volatile float pwm_step = 0;
 
     // Variables
     enum ParseState {

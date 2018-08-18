@@ -39,13 +39,17 @@ namespace gimbal {
 Gimbal::Gimbal()
 {
     parse_state = PARSE_STATE_IDLE;
-    command_in_rate = 0.0;
+    command_in_rate = 20.0;
     servo_command_rate = 0.0;
+    time_of_last_servo = 0;
     info.init(LED2_GPIO, LED2_PIN);
     heartbeat.init(LED1_GPIO, LED1_PIN);
     param_value = PARAM_IDLE;
     spi.init(&spi_config[FLASH_SPI]);
     flash.init(&spi);
+
+    pitch_current_pwm = pitch_start_pwm;
+    yaw_current_pwm = yaw_start_pwm;
     //    time_of_last_message = millis();
 }
 
@@ -57,7 +61,6 @@ void Gimbal::rx_callback(uint8_t byte)
 {
     if (parse_in_byte(byte))
     {
-        float roll, pitch, yaw;
         unpack_in_payload(in_payload_buf, &roll, &pitch, &yaw);
         handle_in_msg(roll, pitch, yaw);
         set_params(roll, pitch, yaw);
@@ -83,17 +86,19 @@ void Gimbal::rx_callback(uint8_t byte)
         else if (!is_retracted || !has_retract)
         {
             calc_servo_rate();
-            //            servo_out[0].writeUs(roll_pwm_command);
-            servo_out[1].writeUs(pitch_pwm_command);
-            servo_out[2].writeUs(yaw_pwm_command);
-        }
 
-//        tx_callback(command_in_rate, servo_command_rate,
-//                    roll_rad_command, pitch_rad_command, yaw_rad_command);
-//        vcp.write(out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
+            //            servo_out[0].writeUs(roll_pwm_command);
+//            servo_out[1].writeUs(pitch_pwm_command);
+//            servo_out[2].writeUs(yaw_pwm_command);
+        }
+        pwm_to_rad();
+        tx_callback(command_in_rate, servo_command_rate,
+                    roll_rad_command, pitch_current_rad, yaw_current_rad);
+        vcp.write(out_buf, gimbal::Gimbal::OUT_MESSAGE_LENGTH);
 //        vcp.flush();
     }
 }
+
 
 //==================================================================
 // Get the parameters from the eeprom if they are there.
@@ -442,10 +447,17 @@ void Gimbal::rad_to_pwm()
         yaw_pwm_command = yaw_pwm_min;
 }
 
+void Gimbal::pwm_to_rad()
+{
+    pitch_current_rad = (float(pitch_current_pwm) - pitch_pwm_center)*pitch_rad_range/(pitch_pwm_max - pitch_pwm_min)/pitch_direction + pitch_rad_offset;
+    yaw_current_rad = (float(yaw_current_pwm) - yaw_pwm_center)*yaw_rad_range/(yaw_pwm_max - yaw_pwm_min)/yaw_direction + yaw_rad_offset;
+}
+
 
 void Gimbal::calc_command_rate()
 {
     command_in_rate = 1000.0/float(millis() - time_of_last_command);
+//    command_in_rate = 20;
 }
 
 void Gimbal::calc_servo_rate()
@@ -464,7 +476,7 @@ void Gimbal::retract_gimbal()
 {
     servo_out[1].writeUs(pitch_start_pwm);
     servo_out[2].writeUs(yaw_start_pwm);
-    if (millis() - retract_time > 1000)
+    if (millis() - retract_time > 4000)
         servo_out[3].writeUs(retract_up_pwm);
 }
 
@@ -473,9 +485,31 @@ void Gimbal::extend_gimbal()
     servo_out[1].writeUs(pitch_start_pwm);
     servo_out[2].writeUs(yaw_start_pwm);
     servo_out[3].writeUs(retract_down_pwm);
-    if (millis() - extend_time > 1000)
+    if (millis() - extend_time > 4000)
     {
         is_retracted = false;
+    }
+}
+uint32_t sat(uint32_t min, uint32_t max, uint32_t x)
+{
+    if (x > max)
+        return max;
+    else if (x < min)
+        return min;
+    else
+        return x;
+}
+
+void Gimbal::update_command()
+{
+    static uint64_t last_update_us = micros();
+    if(micros() > last_update_us + 3000)
+    {
+        last_update_us = micros();
+        pitch_current_pwm = sat(pitch_current_pwm - 1, pitch_current_pwm + 1, pitch_pwm_command);
+        yaw_current_pwm = sat(yaw_current_pwm - 1, yaw_current_pwm + 1, yaw_pwm_command);
+        servo_out[1].writeUs(pitch_current_pwm);
+        servo_out[2].writeUs(yaw_current_pwm);
     }
 }
 
@@ -591,6 +625,8 @@ int main() {
             gimbal_obj.first_retract = false;
             gimbal_obj.first_extend = true;
         }
+
+        gimbal_obj.update_command();
         while(gimbal_obj.vcp.rx_bytes_waiting())
         {
             gimbal_obj.time_of_last_message = millis();
