@@ -50,35 +50,35 @@ public:
 
     // This value is the total range in radians the servo can travel. Not necessarily pi.
     volatile float roll_rad_range = 3.14159;
-    volatile float pitch_rad_range = 3.14159;
-    volatile float yaw_rad_range = 3.14159;
+    volatile float pitch_rad_range = 2.059;
+    volatile float yaw_rad_range = 2.932;
     volatile float retract_rad_range = 3.14159;
 
     // Offset values for aligning gimbal servos with desired coordinate frame (IN RADIANS).
     volatile float  roll_rad_offset = 0;
-    volatile float pitch_rad_offset = 0;
-    volatile float   yaw_rad_offset = 0;
+    volatile float pitch_rad_offset = -0.58;
+    volatile float   yaw_rad_offset = 1.34;
     volatile float retract_rad_offset = 0;
 
     volatile int roll_direction = 1;
-    volatile int pitch_direction = 1;
+    volatile int pitch_direction = -1;
     volatile int yaw_direction = 1;
     volatile int retract_direction = 1;
 
     volatile int roll_start_pwm = 1500;
-    volatile int pitch_start_pwm = 1500;
-    volatile int yaw_start_pwm = 1500;
+    volatile int pitch_start_pwm = 1061;
+    volatile int yaw_start_pwm = 752;
     volatile int retract_start_pwm = 1500;
 
     // Limit the servo travel for mechanical restrictions.
     volatile int  roll_pwm_min = 1000;
-    volatile int pitch_pwm_min = 1000;
-    volatile int   yaw_pwm_min = 1000;
+    volatile int pitch_pwm_min = 816;
+    volatile int   yaw_pwm_min = 629;
     volatile int retract_pwm_min = 1000;
 
     volatile int  roll_pwm_max = 2000;
-    volatile int pitch_pwm_max = 2000;
-    volatile int   yaw_pwm_max = 2000;
+    volatile int pitch_pwm_max = 1976;
+    volatile int   yaw_pwm_max = 2390;
     volatile int retract_pwm_max = 2000;
 
     volatile int retract_up_pwm = 2000;
@@ -105,8 +105,8 @@ public:
     volatile long time_of_last_servo;
 
     volatile int servo_roll_frequency = 50;
-    volatile int servo_pitch_frequency = 330;
-    volatile int servo_yaw_frequency = 330;
+    volatile int servo_pitch_frequency = 200;
+    volatile int servo_yaw_frequency = 200;
     volatile int servo_retract_frequency = 50;
     static constexpr int num_servos = 4;
 

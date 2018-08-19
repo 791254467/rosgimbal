@@ -50,6 +50,8 @@ Gimbal::Gimbal()
 
     pitch_current_pwm = pitch_start_pwm;
     yaw_current_pwm = yaw_start_pwm;
+    pitch_pwm_center = (pitch_pwm_max + pitch_pwm_min)/2;
+    yaw_pwm_center = (yaw_pwm_max + yaw_pwm_min)/2;
     //    time_of_last_message = millis();
 }
 
